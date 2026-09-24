@@ -24,3 +24,7 @@ export function getDaily(params) {
 export function getDeadStock(params) {
   return request(`/analytics/dead-stock${qs(params)}`);
 }
+
+export function getInventoryValue() {
+  return request('/analytics/inventory-value');
+}

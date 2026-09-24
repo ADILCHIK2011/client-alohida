@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getSalesHistory } from '../api/sales.api';
 import { exportToXlsx } from '../api/exportXlsx';
-import { useAuth } from '../auth/AuthContext';
 import { PageHeader } from '../components/PageHeader';
 import { Button } from '../components/Button';
 import { Badge } from '../components/Badge';
@@ -31,8 +30,6 @@ function formatMoney(n) {
 }
 
 export function SalesHistoryPage() {
-  const { user } = useAuth();
-  const isPro = user?.market?.plan === 'pro';
   const [exporting, setExporting] = useState(false);
   const [presetDays, setPresetDays] = useState(7);
   const [paymentFilter, setPaymentFilter] = useState('');
@@ -98,13 +95,8 @@ export function SalesHistoryPage() {
         title="Savdolar tarixi"
         subtitle="Yakunlangan savdolar roʻyxati"
         action={
-          <Button
-            variant="secondary"
-            onClick={handleExport}
-            disabled={!isPro || exporting}
-            title={isPro ? undefined : "Excel'ga eksport Pro rejada mavjud"}
-          >
-            {exporting ? 'Eksport...' : `Excel'ga eksport${isPro ? '' : ' (Pro)'}`}
+          <Button variant="secondary" onClick={handleExport} disabled={exporting}>
+            {exporting ? 'Eksport...' : "Excel'ga eksport"}
           </Button>
         }
       />

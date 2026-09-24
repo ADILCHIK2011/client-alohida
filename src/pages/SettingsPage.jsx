@@ -3,38 +3,18 @@ import { changePassword } from '../api/auth.api';
 import { getTelegramStatus, disconnectTelegram } from '../api/telegram.api';
 import { PageHeader } from '../components/PageHeader';
 import { Button } from '../components/Button';
-import { PricingCard } from '../components/PricingCard';
-import { PLAN_PRICES, PLAN_FEATURES } from '../data/plans';
 import { useAuth } from '../auth/AuthContext';
 
 function TelegramCard() {
-  const { user } = useAuth();
   const [status, setStatus] = useState(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const isPro = user?.market?.plan === 'pro';
 
   useEffect(() => {
-    if (!isPro) return;
     getTelegramStatus()
       .then(setStatus)
       .catch(() => setStatus({ connected: false, botUsername: null }));
-  }, [isPro]);
-
-  if (!isPro) {
-    return (
-      <div className="mt-6 max-w-sm">
-        <PricingCard
-          title="Pro"
-          price={PLAN_PRICES.pro}
-          features={PLAN_FEATURES.pro}
-          highlight
-          actionLabel="Pro rejaga o'tish uchun administratorga murojaat qiling"
-          disabled
-        />
-      </div>
-    );
-  }
+  }, []);
 
   async function handleDisconnect() {
     setError('');

@@ -3,7 +3,6 @@ import { createProduct, deleteProduct, importProducts, listProducts, updateProdu
 import { downloadTemplateCsv, parseSpreadsheetFile } from '../api/importProducts';
 import { exportToXlsx } from '../api/exportXlsx';
 import { useBarcodeScanner } from '../hooks/useBarcodeScanner';
-import { useAuth } from '../auth/AuthContext';
 import { PageHeader } from '../components/PageHeader';
 import { Button } from '../components/Button';
 import { Modal } from '../components/Modal';
@@ -16,8 +15,6 @@ const LOW_STOCK_THRESHOLD = 5;
 const PAGE_SIZE = 10;
 
 export function ProductsPage() {
-  const { user } = useAuth();
-  const isPro = user?.market?.plan === 'pro';
   const [exporting, setExporting] = useState(false);
   const [products, setProducts] = useState([]);
   const [search, setSearch] = useState('');
@@ -137,13 +134,8 @@ export function ProductsPage() {
             <Button variant="secondary" onClick={() => setImportOpen(true)}>
               Excel/CSV import
             </Button>
-            <Button
-              variant="secondary"
-              onClick={handleExport}
-              disabled={!isPro || exporting}
-              title={isPro ? undefined : "Excel'ga eksport Pro rejada mavjud"}
-            >
-              {exporting ? 'Eksport...' : `Excel'ga eksport${isPro ? '' : ' (Pro)'}`}
+            <Button variant="secondary" onClick={handleExport} disabled={exporting}>
+              {exporting ? 'Eksport...' : "Excel'ga eksport"}
             </Button>
             <Button onClick={() => setEditing({})}>+ Mahsulot qo'shish</Button>
           </div>

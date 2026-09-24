@@ -2,9 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { Sparkles, Send } from 'lucide-react';
 import { sendAiMessage } from '../api/ai.api';
 import { PageHeader } from '../components/PageHeader';
-import { PricingCard } from '../components/PricingCard';
-import { PLAN_PRICES, PLAN_FEATURES } from '../data/plans';
-import { useAuth } from '../auth/AuthContext';
 
 const SUGGESTIONS = [
   "Bugungi savdo qanday?",
@@ -13,26 +10,7 @@ const SUGGESTIONS = [
   "30 kundan beri sotilmagan mahsulotlar bor-yo'q?",
 ];
 
-function UpgradeToPro() {
-  return (
-    <div>
-      <PageHeader title="AI yordamchi" subtitle="Bu funksiya Pro rejada mavjud" />
-      <div className="mx-auto max-w-sm">
-        <PricingCard
-          title="Pro"
-          price={PLAN_PRICES.pro}
-          features={PLAN_FEATURES.pro}
-          highlight
-          actionLabel="Pro rejaga o'tish uchun administratorga murojaat qiling"
-          disabled
-        />
-      </div>
-    </div>
-  );
-}
-
 export function AIPage() {
-  const { user } = useAuth();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -42,10 +20,6 @@ export function AIPage() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
-
-  if (user?.market?.plan !== 'pro') {
-    return <UpgradeToPro />;
-  }
 
   async function handleSend(text) {
     const content = (text ?? input).trim();

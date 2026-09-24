@@ -20,7 +20,6 @@ import {
 import { useAuth } from '../auth/AuthContext';
 import { useTheme } from '../hooks/useTheme';
 import { NotificationBell } from '../components/NotificationBell';
-import { Badge } from '../components/Badge';
 import logo from '../assets/logo.png';
 
 const OWNER_NAV = [
@@ -41,8 +40,7 @@ const CASHIER_NAV = [{ to: '/cashier', label: 'Kassa', icon: ScanBarcode }];
 export function DashboardShell() {
   const { user, logout } = useAuth();
   const nav = user?.role === 'owner' ? OWNER_NAV : CASHIER_NAV;
-  const isPro = user?.market?.plan === 'pro';
-  const { isDark, toggleTheme } = useTheme(isPro);
+  const { isDark, toggleTheme } = useTheme(true);
   const initial = user?.name?.[0]?.toUpperCase() || '?';
   const roleLabel = user?.role === 'owner' ? 'Boshliq' : 'Kassir';
   const [navOpen, setNavOpen] = useState(false);
@@ -107,7 +105,6 @@ export function DashboardShell() {
                       className={`transition-transform duration-200 ${isActive ? 'scale-110' : ''}`}
                     />
                     <span className="flex-1">{item.label}</span>
-                    {item.to === '/ai' && !isPro && <Badge tone="primary">Pro</Badge>}
                   </>
                 )}
               </NavLink>
@@ -137,26 +134,14 @@ export function DashboardShell() {
           </button>
           <div className="flex flex-1 items-center justify-end gap-3">
             {user?.role === 'owner' && <NotificationBell />}
-            {isPro ? (
-              <button
-                className="btn btn-ghost btn-sm btn-circle transition-transform duration-200 hover:-rotate-12"
-                onClick={toggleTheme}
-                aria-label={isDark ? "Yorugʻ rejimga oʻtish" : "Qorongʻu rejimga oʻtish"}
-                title={isDark ? "Yorugʻ rejimga oʻtish" : "Qorongʻu rejimga oʻtish"}
-              >
-                {isDark ? <Sun size={18} /> : <Moon size={18} />}
-              </button>
-            ) : (
-              <div
-                className="hidden items-center gap-1.5 sm:flex"
-                title="Qorongʻu rejim faqat Pro rejada mavjud"
-              >
-                <button className="btn btn-ghost btn-sm btn-circle" disabled>
-                  <Moon size={18} className="opacity-40" />
-                </button>
-                <Badge tone="primary">Pro</Badge>
-              </div>
-            )}
+            <button
+              className="btn btn-ghost btn-sm btn-circle transition-transform duration-200 hover:-rotate-12"
+              onClick={toggleTheme}
+              aria-label={isDark ? "Yorugʻ rejimga oʻtish" : "Qorongʻu rejimga oʻtish"}
+              title={isDark ? "Yorugʻ rejimga oʻtish" : "Qorongʻu rejimga oʻtish"}
+            >
+              {isDark ? <Sun size={18} /> : <Moon size={18} />}
+            </button>
             <div className="flex items-center gap-2.5">
               <div
                 className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-primary ring-2 ring-primary/25"
