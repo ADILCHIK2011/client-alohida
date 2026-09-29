@@ -73,6 +73,7 @@ export function ProductsPage() {
       barcode: form.get('barcode'),
       name: form.get('name'),
       price: Number(form.get('price')),
+      costPrice: form.get('costPrice') ? Number(form.get('costPrice')) : undefined,
       stock: Number(form.get('stock') || 0),
       unit: form.get('unit') === 'kg' ? 'kg' : 'dona',
     };
@@ -115,9 +116,16 @@ export function ProductsPage() {
           { header: 'Shtrix-kod', key: 'barcode', width: 18 },
           { header: 'Nomi', key: 'name', width: 32 },
           { header: 'Narxi', key: 'price', width: 14, format: 'currency' },
+          { header: 'Kirish narxi', key: 'costPrice', width: 14, format: 'currency' },
           { header: 'Qoldiq', key: 'stock', width: 12, format: 'number' },
         ],
-        rows: all.map((p) => ({ barcode: p.barcode, name: p.name, price: p.price, stock: p.stock })),
+        rows: all.map((p) => ({
+          barcode: p.barcode,
+          name: p.name,
+          price: p.price,
+          costPrice: p.costPrice ?? '',
+          stock: p.stock,
+        })),
       });
     } finally {
       setExporting(false);
@@ -158,6 +166,7 @@ export function ProductsPage() {
               <th>Shtrix-kod</th>
               <th>Nomi</th>
               <th>Narxi</th>
+              <th>Farq</th>
               <th>Qoldiq</th>
               <th></th>
             </tr>
@@ -168,6 +177,15 @@ export function ProductsPage() {
                 <td className="font-mono text-sm text-base-content/70">{p.barcode}</td>
                 <td className="font-medium">{p.name}</td>
                 <td>{p.price.toLocaleString()} so'm</td>
+                <td>
+                  {p.costPrice === undefined || p.costPrice === null ? (
+                    <span className="text-sm text-base-content/40">—</span>
+                  ) : (
+                    <Badge tone={p.price - p.costPrice >= 0 ? 'success' : 'danger'}>
+                      {(p.price - p.costPrice).toLocaleString()} so'm
+                    </Badge>
+                  )}
+                </td>
                 <td>
                   {p.stock <= LOW_STOCK_THRESHOLD ? (
                     <Badge tone={p.stock === 0 ? 'danger' : 'warning'}>{formatQuantity(p.stock, p.unit)}</Badge>
@@ -264,17 +282,30 @@ function ProductFormModal({ product, error, onSubmit, onClose }) {
             />
           </label>
           <label className="block flex-1">
-            <span className="mb-1 block text-sm text-base-content/60">Qoldiq {isKg ? '(kg)' : '(dona)'}</span>
+            <span className="mb-1 block text-sm text-base-content/60">
+              Kirish narxi <span className="text-base-content/40">(ixtiyoriy)</span>
+            </span>
             <input
               className="input input-bordered w-full"
-              name="stock"
+              name="costPrice"
               type="number"
               min="0"
-              step={isKg ? '0.001' : '1'}
-              defaultValue={product.stock ?? 0}
+              step={isKg ? '0.01' : '1'}
+              defaultValue={product.costPrice ?? ''}
             />
           </label>
         </div>
+        <label className="block">
+          <span className="mb-1 block text-sm text-base-content/60">Qoldiq {isKg ? '(kg)' : '(dona)'}</span>
+          <input
+            className="input input-bordered w-full"
+            name="stock"
+            type="number"
+            min="0"
+            step={isKg ? '0.001' : '1'}
+            defaultValue={product.stock ?? 0}
+          />
+        </label>
         {error && <p className="text-sm text-error">{error}</p>}
         <div className="mt-2 flex justify-end gap-2">
           <Button type="button" variant="secondary" onClick={onClose}>
@@ -326,11 +357,11 @@ function ImportModal({ onClose, onImported }) {
     <Modal title="Excel/CSV orqali import" onClose={onClose}>
       <div className="flex flex-col gap-3">
         <p className="text-sm text-base-content/60">
-          Ustunlar: <code className="font-mono">barcode, name, price, stock, unit</code>
+          Ustunlar: <code className="font-mono">barcode, name, price, costPrice, stock, unit</code>
           <br />
           <span className="text-base-content/40">
-            unit ixtiyoriy — "dona" yoki "kg" (bo'sh qoldirilsa: yangi mahsulot uchun "dona", mavjud mahsulot
-            uchun o'zgarmaydi)
+            costPrice ixtiyoriy — kirish narxi (bo'sh qoldirilsa mavjud mahsulotda o'zgarmaydi). unit ixtiyoriy —
+            "dona" yoki "kg" (bo'sh qoldirilsa: yangi mahsulot uchun "dona", mavjud mahsulot uchun o'zgarmaydi)
           </span>
         </p>
         <button className="link link-primary w-fit text-sm" onClick={downloadTemplateCsv} type="button">

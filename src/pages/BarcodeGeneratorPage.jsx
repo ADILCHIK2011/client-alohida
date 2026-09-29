@@ -75,14 +75,45 @@ export function BarcodeGeneratorPage() {
     const img = new Image();
     img.onload = () => {
       const scale = 4; // upscale well past screen resolution for crisp label printing
+      const padding = 16 * scale;
+      const gap = 6 * scale;
+      const nameFont = `600 ${22 * scale}px sans-serif`;
+      const priceFont = `${20 * scale}px sans-serif`;
+      const priceText = `${Number(price).toLocaleString()} so'm`;
+      const barcodeWidth = img.width * scale;
+      const barcodeHeight = img.height * scale;
+
       const canvas = document.createElement('canvas');
-      canvas.width = img.width * scale;
-      canvas.height = img.height * scale;
       const ctx = canvas.getContext('2d');
+
+      // Label text is drawn as plain pixels here, never fed to JsBarcode, so
+      // it can never end up encoded in the barcode itself — only the scanned
+      // digits under the bars (rendered by JsBarcode's own displayValue) are
+      // the real barcode.
+      ctx.font = nameFont;
+      const nameWidth = ctx.measureText(name).width;
+      ctx.font = priceFont;
+      const priceWidth = ctx.measureText(priceText).width;
+
+      canvas.width = Math.max(nameWidth, priceWidth, barcodeWidth) + padding * 2;
+      canvas.height = padding * 2 + 22 * scale + gap + 20 * scale + gap + barcodeHeight;
+
       ctx.fillStyle = '#fff';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.scale(scale, scale);
-      ctx.drawImage(img, 0, 0);
+      ctx.fillStyle = '#000';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+
+      let y = padding;
+      ctx.font = nameFont;
+      ctx.fillText(name, canvas.width / 2, y);
+      y += 22 * scale + gap;
+      ctx.font = priceFont;
+      ctx.fillText(priceText, canvas.width / 2, y);
+      y += 20 * scale + gap;
+
+      ctx.drawImage(img, (canvas.width - barcodeWidth) / 2, y, barcodeWidth, barcodeHeight);
+
       URL.revokeObjectURL(url);
       canvas.toBlob((blob) => {
         const link = document.createElement('a');

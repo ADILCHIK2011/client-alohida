@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { TrendingUp, Receipt, Wallet, CalendarRange } from 'lucide-react';
-import { getDaily, getSummary, getTopProducts } from '../api/analytics.api';
+import { getDaily, getInventoryValue, getSummary, getTopProducts } from '../api/analytics.api';
 import { PageHeader } from '../components/PageHeader';
 import { StatTile } from '../components/StatTile';
 import { formatQuantity } from '../data/units';
@@ -146,6 +146,7 @@ export function AnalyticsPage() {
   const [summary, setSummary] = useState(null);
   const [days, setDays] = useState([]);
   const [topProducts, setTopProducts] = useState([]);
+  const [inventoryValue, setInventoryValue] = useState(null);
   const [loading, setLoading] = useState(true);
   const pickerRef = useRef(null);
 
@@ -183,6 +184,11 @@ export function AnalyticsPage() {
       })
       .finally(() => setLoading(false));
   }, [params, activeRange]);
+
+  // Current stock snapshot, not tied to the selected date range.
+  useEffect(() => {
+    getInventoryValue().then(setInventoryValue);
+  }, []);
 
   useEffect(() => {
     function handleClickOutside(e) {
@@ -298,6 +304,30 @@ export function AnalyticsPage() {
           format={(n) => formatMoney(Math.round(n))}
           icon={TrendingUp}
         />
+      </div>
+
+      <div className={inventoryValue?.missingCostPriceCount > 0 ? 'mb-2' : 'mb-6'}>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <StatTile
+            label="Barcha mahsulotlarning hozirgi summasi (sotuv narxida)"
+            value={inventoryValue?.totalSellValue}
+            format={(n) => formatMoney(Math.round(n))}
+            icon={Wallet}
+            accent
+          />
+          <StatTile
+            label="Ombordagi tovar qiymati (kirish narxida)"
+            value={inventoryValue?.totalCostValue}
+            format={(n) => formatMoney(Math.round(n))}
+            icon={Wallet}
+          />
+        </div>
+        {inventoryValue?.missingCostPriceCount > 0 && (
+          <p className="mt-2 text-xs text-warning">
+            {inventoryValue.missingCostPriceCount} ta mahsulotda kirish narxi kiritilmagan — kirish narxidagi
+            summa haqiqiysidan kam ko'rsatilgan bo'lishi mumkin.
+          </p>
+        )}
       </div>
 
       <div className="mb-6 rounded-box border border-base-300 bg-base-100 p-5">
