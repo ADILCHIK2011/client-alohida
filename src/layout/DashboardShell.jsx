@@ -22,24 +22,31 @@ import { useTheme } from '../hooks/useTheme';
 import { NotificationBell } from '../components/NotificationBell';
 import logo from '../assets/logo.png';
 
-const OWNER_NAV = [
-  { to: '/overview', label: 'Bosh sahifa', icon: LayoutDashboard },
-  { to: '/ai', label: 'AI yordamchi', icon: Sparkles },
+// `permission` gates a page behind a cashier's granted permissions (see
+// RequirePermission.jsx / WorkersPage checkboxes). `ownerOnly` pages never
+// show for a cashier no matter their permissions. Items with neither are
+// always visible to any signed-in user (just Kassa, today).
+const NAV = [
+  { to: '/overview', label: 'Bosh sahifa', icon: LayoutDashboard, permission: 'overview' },
+  { to: '/ai', label: 'AI yordamchi', icon: Sparkles, permission: 'ai' },
   { to: '/cashier', label: 'Kassa', icon: ScanBarcode },
-  { to: '/products', label: 'Mahsulotlar', icon: Package },
-  { to: '/barcode-generator', label: 'Shtrix-kod yaratish', icon: Barcode },
-  { to: '/sales-history', label: 'Savdolar tarixi', icon: History },
-  { to: '/dead-stock', label: "O'lik mahsulotlar", icon: PackageX },
-  { to: '/workers', label: 'Xodimlar', icon: Users },
-  { to: '/analytics', label: 'Tahlillar', icon: BarChart3 },
-  { to: '/settings', label: 'Sozlamalar', icon: Settings },
+  { to: '/products', label: 'Mahsulotlar', icon: Package, permission: 'products' },
+  { to: '/barcode-generator', label: 'Shtrix-kod yaratish', icon: Barcode, ownerOnly: true },
+  { to: '/sales-history', label: 'Savdolar tarixi', icon: History, permission: 'sales-history' },
+  { to: '/dead-stock', label: "O'lik mahsulotlar", icon: PackageX, permission: 'dead-stock' },
+  { to: '/workers', label: 'Xodimlar', icon: Users, ownerOnly: true },
+  { to: '/analytics', label: 'Tahlillar', icon: BarChart3, permission: 'analytics' },
+  { to: '/settings', label: 'Sozlamalar', icon: Settings, ownerOnly: true },
 ];
-
-const CASHIER_NAV = [{ to: '/cashier', label: 'Kassa', icon: ScanBarcode }];
 
 export function DashboardShell() {
   const { user, logout } = useAuth();
-  const nav = user?.role === 'owner' ? OWNER_NAV : CASHIER_NAV;
+  const nav = NAV.filter((item) => {
+    if (user?.role === 'owner') return true;
+    if (item.ownerOnly) return false;
+    if (!item.permission) return true;
+    return user?.permissions?.includes(item.permission);
+  });
   const { isDark, toggleTheme } = useTheme(true);
   const initial = user?.name?.[0]?.toUpperCase() || '?';
   const roleLabel = user?.role === 'owner' ? 'Boshliq' : 'Kassir';

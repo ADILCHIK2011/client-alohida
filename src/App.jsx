@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider, useAuth } from './auth/AuthContext';
 import { RequireRole } from './auth/RequireRole';
+import { RequirePermission } from './auth/RequirePermission';
 import { DashboardShell } from './layout/DashboardShell';
 import { LoginPage } from './pages/LoginPage';
 import { CashierPage } from './pages/CashierPage';
@@ -32,15 +33,28 @@ function App() {
             <Route path="/" element={<RootRedirect />} />
             <Route path="/cashier" element={<CashierPage />} />
 
-            <Route element={<RequireRole roles={['owner']} />}>
+            <Route element={<RequirePermission permission="overview" />}>
               <Route path="/overview" element={<OverviewPage />} />
+            </Route>
+            <Route element={<RequirePermission permission="ai" />}>
               <Route path="/ai" element={<AIPage />} />
+            </Route>
+            <Route element={<RequirePermission permission="products" />}>
               <Route path="/products" element={<ProductsPage />} />
-              <Route path="/barcode-generator" element={<BarcodeGeneratorPage />} />
+            </Route>
+            <Route element={<RequirePermission permission="sales-history" />}>
               <Route path="/sales-history" element={<SalesHistoryPage />} />
+            </Route>
+            <Route element={<RequirePermission permission="dead-stock" />}>
               <Route path="/dead-stock" element={<DeadStockPage />} />
-              <Route path="/workers" element={<WorkersPage />} />
+            </Route>
+            <Route element={<RequirePermission permission="analytics" />}>
               <Route path="/analytics" element={<AnalyticsPage />} />
+            </Route>
+
+            <Route element={<RequireRole roles={['owner']} />}>
+              <Route path="/barcode-generator" element={<BarcodeGeneratorPage />} />
+              <Route path="/workers" element={<WorkersPage />} />
               <Route path="/settings" element={<SettingsPage />} />
             </Route>
           </Route>

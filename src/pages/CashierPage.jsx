@@ -1,13 +1,46 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Plus, Trash2, X } from 'lucide-react';
+import { Play, Plus, Square, Trash2, X } from 'lucide-react';
 import { getProductByBarcode } from '../api/products.api';
 import { cancelSale, completeSale, createSale, listMySales, updateSaleItems } from '../api/sales.api';
+import { endShift, getCurrentShift, startShift } from '../api/shifts.api';
+import { useAuth } from '../auth/AuthContext';
 import { useBarcodeScanner } from '../hooks/useBarcodeScanner';
 import { Button } from '../components/Button';
 import { PAYMENT_METHODS } from '../data/paymentMethods';
 import { roundQuantity, stepFor } from '../data/units';
 
 export function CashierPage() {
+  const { user } = useAuth();
+  const isCashier = user?.role === 'cashier';
+
+  // Owners aren't shift-tracked (see server's Shift model) — only cashiers
+  // must start a shift before the till works.
+  const [shift, setShift] = useState(null);
+  const [shiftLoading, setShiftLoading] = useState(isCashier);
+  const [shiftStarting, setShiftStarting] = useState(false);
+
+  useEffect(() => {
+    if (!isCashier) return;
+    getCurrentShift()
+      .then((data) => setShift(data.shift))
+      .finally(() => setShiftLoading(false));
+  }, [isCashier]);
+
+  async function handleStartShift() {
+    setShiftStarting(true);
+    try {
+      const { shift: newShift } = await startShift();
+      setShift(newShift);
+    } finally {
+      setShiftStarting(false);
+    }
+  }
+
+  async function handleEndShift() {
+    await endShift();
+    setShift(null);
+  }
+
   const [tickets, setTickets] = useState([]);
   const [activeId, setActiveId] = useState(null);
   const [manualBarcode, setManualBarcode] = useState('');
@@ -182,10 +215,34 @@ export function CashierPage() {
     }
   }
 
+  if (isCashier && shiftLoading) {
+    return null;
+  }
+
+  if (isCashier && !shift) {
+    return (
+      <div className="flex h-full flex-1 flex-col items-center justify-center gap-4 rounded-box border border-dashed border-base-300 text-center">
+        <p className="text-base-content/60">Kassani ishlatishdan oldin ishni boshlang.</p>
+        <Button onClick={handleStartShift} disabled={shiftStarting}>
+          <Play size={16} className="mr-1.5 inline" />
+          {shiftStarting ? 'Boshlanmoqda...' : 'Ishni boshlash'}
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-full flex-col">
       <div className="mb-4 flex items-center justify-between">
         <h1 className="font-heading text-2xl font-semibold">Kassa</h1>
+        {isCashier && (
+          <button
+            className="flex items-center gap-1.5 rounded-field px-3 py-1.5 text-sm text-base-content/50 hover:bg-error/10 hover:text-error"
+            onClick={handleEndShift}
+          >
+            <Square size={14} /> Ishni tugatish
+          </button>
+        )}
       </div>
 
       {/* Ticket tabs */}

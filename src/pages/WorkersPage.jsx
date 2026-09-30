@@ -5,12 +5,33 @@ import { Button } from '../components/Button';
 import { Modal } from '../components/Modal';
 import { Badge } from '../components/Badge';
 
+const PERMISSION_OPTIONS = [
+  { key: 'overview', label: 'Bosh sahifa' },
+  { key: 'products', label: 'Mahsulotlar' },
+  { key: 'sales-history', label: 'Savdolar tarixi' },
+  { key: 'analytics', label: 'Tahlillar' },
+  { key: 'dead-stock', label: "O'lik mahsulotlar" },
+  { key: 'ai', label: 'AI yordamchi' },
+];
+
 export function WorkersPage() {
   const [workers, setWorkers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(null);
+  const [selectedPermissions, setSelectedPermissions] = useState([]);
   const [resettingId, setResettingId] = useState(null);
   const [error, setError] = useState('');
+
+  function openEditor(worker) {
+    setEditing(worker);
+    setSelectedPermissions(worker.permissions || []);
+  }
+
+  function togglePermission(key) {
+    setSelectedPermissions((prev) =>
+      prev.includes(key) ? prev.filter((p) => p !== key) : [...prev, key]
+    );
+  }
 
   function reload() {
     setLoading(true);
@@ -27,12 +48,13 @@ export function WorkersPage() {
     const form = new FormData(e.target);
     try {
       if (editing._id) {
-        await updateWorker(editing._id, { name: form.get('name') });
+        await updateWorker(editing._id, { name: form.get('name'), permissions: selectedPermissions });
       } else {
         await createWorker({
           name: form.get('name'),
           username: form.get('username'),
           password: form.get('password'),
+          permissions: selectedPermissions,
         });
       }
       setEditing(null);
@@ -64,7 +86,7 @@ export function WorkersPage() {
       <PageHeader
         title="Xodimlar"
         subtitle="Kassirlar ro'yxati"
-        action={<Button onClick={() => setEditing({})}>+ Xodim qo'shish</Button>}
+        action={<Button onClick={() => openEditor({})}>+ Xodim qo'shish</Button>}
       />
 
       <div className="overflow-x-auto rounded-box border border-base-300 bg-base-100">
@@ -86,7 +108,7 @@ export function WorkersPage() {
                   <Badge tone={w.active ? 'success' : 'neutral'}>{w.active ? 'Faol' : "Faol emas"}</Badge>
                 </td>
                 <td className="whitespace-nowrap text-right">
-                  <button className="btn btn-ghost btn-sm" onClick={() => setEditing(w)}>
+                  <button className="btn btn-ghost btn-sm" onClick={() => openEditor(w)}>
                     Tahrirlash
                   </button>
                   <button className="btn btn-ghost btn-sm" onClick={() => setResettingId(w._id)}>
@@ -130,6 +152,24 @@ export function WorkersPage() {
                 </label>
               </>
             )}
+            <div>
+              <span className="mb-1.5 block text-sm text-base-content/60">
+                Qaysi sahifalarni ko'ra oladi (Kassa har doim ochiq)
+              </span>
+              <div className="flex flex-col gap-1.5">
+                {PERMISSION_OPTIONS.map((opt) => (
+                  <label key={opt.key} className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      className="checkbox checkbox-sm"
+                      checked={selectedPermissions.includes(opt.key)}
+                      onChange={() => togglePermission(opt.key)}
+                    />
+                    {opt.label}
+                  </label>
+                ))}
+              </div>
+            </div>
             {error && <p className="text-sm text-error">{error}</p>}
             <div className="mt-2 flex justify-end gap-2">
               <Button type="button" variant="secondary" onClick={() => setEditing(null)}>
