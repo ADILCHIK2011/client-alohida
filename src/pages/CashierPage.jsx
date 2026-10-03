@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Play, Plus, Square, Trash2, X } from 'lucide-react';
-import { getProductByBarcode } from '../api/products.api';
+import { Play, Plus, Search, Square, Trash2, X } from 'lucide-react';
+import { getProductByBarcode, searchProductsQuick } from '../api/products.api';
 import { cancelSale, completeSale, createSale, listMySales, updateSaleItems } from '../api/sales.api';
 import { endShift, getCurrentShift, startShift } from '../api/shifts.api';
 import { useAuth } from '../auth/AuthContext';
@@ -8,6 +8,19 @@ import { useBarcodeScanner } from '../hooks/useBarcodeScanner';
 import { Button } from '../components/Button';
 import { PAYMENT_METHODS } from '../data/paymentMethods';
 import { roundQuantity, stepFor } from '../data/units';
+
+// Bolds the substring of `name` that matched `query`, for the search dropdown.
+function highlightMatch(name, query) {
+  const idx = name.toLowerCase().indexOf(query.toLowerCase());
+  if (idx === -1) return name;
+  return (
+    <>
+      {name.slice(0, idx)}
+      <span className="font-semibold text-primary">{name.slice(idx, idx + query.length)}</span>
+      {name.slice(idx + query.length)}
+    </>
+  );
+}
 
 export function CashierPage() {
   const { user } = useAuth();
@@ -44,6 +57,9 @@ export function CashierPage() {
   const [tickets, setTickets] = useState([]);
   const [activeId, setActiveId] = useState(null);
   const [manualBarcode, setManualBarcode] = useState('');
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [highlightIndex, setHighlightIndex] = useState(-1);
   const [scanError, setScanError] = useState('');
   const [completing, setCompleting] = useState(false);
   // Keyed by ticket id so switching tabs never leaks one ticket's selected
@@ -102,19 +118,10 @@ export function CashierPage() {
     return sale;
   }
 
-  async function handleScan(barcode) {
-    setScanError('');
-    setManualBarcode('');
+  // Shared by a barcode scan and a search-dropdown click — both just need to
+  // add one unit of an already-resolved product to the active ticket.
+  async function addProductToCart(product) {
     const ticket = activeTicket || (await handleNewTicket());
-
-    let product;
-    try {
-      ({ product } = await getProductByBarcode(barcode));
-    } catch (err) {
-      setScanError(`"${barcode}" topilmadi`);
-      return;
-    }
-
     try {
       await applyItemsChange(ticket._id, (items) => {
         const existing = items.find((i) => i.productId === product._id);
@@ -129,10 +136,75 @@ export function CashierPage() {
     }
   }
 
+  async function handleScan(barcode) {
+    setScanError('');
+    setManualBarcode('');
+    setSuggestions([]);
+    setShowSuggestions(false);
+
+    let product;
+    try {
+      ({ product } = await getProductByBarcode(barcode));
+    } catch (err) {
+      setScanError(`"${barcode}" topilmadi`);
+      return;
+    }
+
+    await addProductToCart(product);
+  }
+
   useBarcodeScanner(handleScan);
+
+  // Debounced name search as the cashier types — lets them find a product
+  // without knowing its barcode. Skipped once a suggestion was just picked
+  // (manualBarcode is cleared then) so the dropdown doesn't immediately
+  // reopen on an empty query.
+  useEffect(() => {
+    const query = manualBarcode.trim();
+    if (!query) {
+      setSuggestions([]);
+      return;
+    }
+    const timer = setTimeout(() => {
+      searchProductsQuick(query)
+        .then(({ products }) => {
+          setSuggestions(products);
+          setHighlightIndex(-1);
+        })
+        .catch(() => {});
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [manualBarcode]);
+
+  async function selectSuggestion(product) {
+    setScanError('');
+    setManualBarcode('');
+    setSuggestions([]);
+    setShowSuggestions(false);
+    setHighlightIndex(-1);
+    await addProductToCart(product);
+  }
+
+  function handleSearchKeyDown(e) {
+    if (!showSuggestions || suggestions.length === 0) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHighlightIndex((i) => (i + 1) % suggestions.length);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightIndex((i) => (i <= 0 ? suggestions.length - 1 : i - 1));
+    } else if (e.key === 'Escape') {
+      setShowSuggestions(false);
+      setHighlightIndex(-1);
+    }
+  }
 
   async function handleManualSubmit(e) {
     e.preventDefault();
+    if (showSuggestions && highlightIndex >= 0 && suggestions[highlightIndex]) {
+      await selectSuggestion(suggestions[highlightIndex]);
+      return;
+    }
     if (!manualBarcode.trim()) return;
     await handleScan(manualBarcode.trim());
   }
@@ -271,13 +343,59 @@ export function CashierPage() {
       </div>
 
       <form onSubmit={handleManualSubmit} className="mb-4 flex gap-2">
-        <input
-          className="input input-bordered w-full font-mono sm:w-72"
-          placeholder="Shtrix-kodni skanerlang yoki kiriting..."
-          value={manualBarcode}
-          onChange={(e) => setManualBarcode(e.target.value)}
-          autoFocus
-        />
+        <div className="relative w-full sm:w-72">
+          <input
+            className="input input-bordered w-full pr-8 font-mono"
+            placeholder="Shtrix-kod yoki nomi bo'yicha qidiring..."
+            value={manualBarcode}
+            onChange={(e) => {
+              setManualBarcode(e.target.value);
+              setShowSuggestions(true);
+            }}
+            onFocus={() => setShowSuggestions(true)}
+            onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+            onKeyDown={handleSearchKeyDown}
+            autoFocus
+          />
+          {manualBarcode && (
+            <button
+              type="button"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-base-content/40 hover:text-base-content/70"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                setManualBarcode('');
+                setSuggestions([]);
+              }}
+              aria-label="Tozalash"
+            >
+              <X size={16} />
+            </button>
+          )}
+          {showSuggestions && suggestions.length > 0 && (
+            <ul className="absolute z-20 mt-1 max-h-80 w-full overflow-auto rounded-box border border-base-300 bg-base-100 py-1 shadow-xl">
+              {suggestions.map((product, i) => (
+                <li key={product._id}>
+                  <button
+                    type="button"
+                    className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm ${
+                      i === highlightIndex ? 'bg-base-200' : 'hover:bg-base-200'
+                    }`}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onMouseEnter={() => setHighlightIndex(i)}
+                    onClick={() => selectSuggestion(product)}
+                  >
+                    <Search size={14} className="shrink-0 text-base-content/40" />
+                    <span className="flex-1 truncate">{highlightMatch(product.name, manualBarcode.trim())}</span>
+                    <span className="shrink-0 text-base-content/50">
+                      {product.price.toLocaleString()}
+                      {product.unit === 'kg' ? '/kg' : ''}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
         <Button type="submit" variant="secondary">
           Qo'shish
         </Button>

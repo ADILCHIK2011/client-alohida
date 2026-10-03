@@ -29,6 +29,10 @@ function formatShiftTime(value) {
   });
 }
 
+function formatMoney(n) {
+  return `${(n || 0).toLocaleString()} so'm`;
+}
+
 export function WorkersPage() {
   const [workers, setWorkers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -248,6 +252,8 @@ export function WorkersPage() {
                   <th>Boshlandi</th>
                   <th>Tugadi</th>
                   <th>Holat</th>
+                  <th>Daromad</th>
+                  <th>Cheklar</th>
                 </tr>
               </thead>
               <tbody>
@@ -260,6 +266,8 @@ export function WorkersPage() {
                         {s.status === 'open' ? 'Ochiq' : 'Yopiq'}
                       </Badge>
                     </td>
+                    <td className="whitespace-nowrap font-medium">{formatMoney(s.revenue)}</td>
+                    <td className="whitespace-nowrap text-base-content/60">{s.transactions ?? 0} ta</td>
                   </tr>
                 ))}
               </tbody>

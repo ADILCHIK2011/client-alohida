@@ -1,23 +1,21 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Bell, AlertTriangle, X } from 'lucide-react';
+import { Bell, AlertTriangle } from 'lucide-react';
+import { toast } from 'react-toastify';
 import { listProducts } from '../api/products.api';
 import { getSocket } from '../socket';
 import { formatQuantity } from '../data/units';
 
 const LOW_STOCK_THRESHOLD = 5;
-const TOAST_DISMISS_MS = 6000;
 
 export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const [products, setProducts] = useState([]);
-  const [toasts, setToasts] = useState([]);
   const containerRef = useRef(null);
   // Tracks which products are already known to be low, so a toast only
   // fires the moment a product *newly* crosses the threshold — not on every
   // subsequent sale that keeps it low.
   const alertedRef = useRef(new Set());
-  const toastIdRef = useRef(0);
   // Mirrors `products` so the socket handler can look up a product's unit
   // (dona/kg) for the toast text — `stock:changed` diffs don't carry unit.
   const productsRef = useRef(new Map());
@@ -27,9 +25,7 @@ export function NotificationBell() {
   }, [products]);
 
   function pushToast(text, tone = 'warning') {
-    const id = ++toastIdRef.current;
-    setToasts((prev) => [...prev, { id, text, tone }]);
-    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), TOAST_DISMISS_MS);
+    toast(text, { type: tone === 'danger' ? 'error' : 'warning' });
   }
 
   useEffect(() => {
@@ -110,30 +106,6 @@ export function NotificationBell() {
 
   return (
     <div ref={containerRef} className="relative">
-      <div className="pointer-events-none fixed right-4 top-4 z-[100] flex w-80 max-w-[calc(100vw-2rem)] flex-col gap-2">
-        {toasts.map((t) => (
-          <div
-            key={t.id}
-            className={`glass animate-scale-in pointer-events-auto flex items-start gap-2 rounded-box border p-3 text-sm shadow-xl ${
-              t.tone === 'danger' ? 'border-error/40' : 'border-warning/40'
-            }`}
-          >
-            <AlertTriangle
-              size={16}
-              className={`mt-0.5 shrink-0 ${t.tone === 'danger' ? 'text-error' : 'text-warning'}`}
-            />
-            <span className="flex-1">{t.text}</span>
-            <button
-              className="shrink-0 text-base-content/40 hover:text-base-content"
-              onClick={() => setToasts((prev) => prev.filter((x) => x.id !== t.id))}
-              aria-label="Yopish"
-            >
-              <X size={14} />
-            </button>
-          </div>
-        ))}
-      </div>
-
       <button
         className="btn btn-ghost btn-sm btn-circle relative"
         onClick={() => setOpen((o) => !o)}

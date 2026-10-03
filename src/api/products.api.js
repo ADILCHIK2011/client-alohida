@@ -17,6 +17,10 @@ export function getProductByBarcode(barcode) {
   return request(`/products/barcode/${barcode}`);
 }
 
+export function searchProductsQuick(q) {
+  return request(`/products/search${qs({ q })}`);
+}
+
 export function generateBarcode() {
   return request('/products/generate-barcode');
 }
