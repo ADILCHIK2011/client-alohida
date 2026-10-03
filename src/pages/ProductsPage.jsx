@@ -329,12 +329,19 @@ function ProductFormModal({ product, error, onSubmit, onClose }) {
   );
 }
 
+// Sent in batches instead of one request for the whole file — keeps every
+// request body small (regardless of how large the catalog is) and turns one
+// slow do-or-die bulkWrite into many fast ones, with real progress instead
+// of the UI looking frozen on a big import.
+const IMPORT_BATCH_SIZE = 500;
+
 function ImportModal({ onClose, onImported }) {
   const [rows, setRows] = useState([]);
   const [fileName, setFileName] = useState('');
   const [error, setError] = useState('');
   const [result, setResult] = useState(null);
   const [importing, setImporting] = useState(false);
+  const [progress, setProgress] = useState(null);
 
   async function handleFile(e) {
     const file = e.target.files?.[0];
@@ -353,12 +360,29 @@ function ImportModal({ onClose, onImported }) {
   async function handleConfirm() {
     setImporting(true);
     setError('');
+    const aggregate = { imported: 0, created: 0, updated: 0, errors: [] };
     try {
-      const res = await importProducts(rows);
-      setResult(res);
+      for (let start = 0; start < rows.length; start += IMPORT_BATCH_SIZE) {
+        const batch = rows.slice(start, start + IMPORT_BATCH_SIZE);
+        const res = await importProducts(batch);
+        aggregate.imported += res.imported;
+        aggregate.created += res.created;
+        aggregate.updated += res.updated;
+        // Row numbers in `errors` are relative to the batch — offset by this
+        // batch's starting position so they match the original file's rows.
+        aggregate.errors.push(...res.errors.map((e) => ({ ...e, row: e.row + start })));
+        setProgress({ done: Math.min(start + IMPORT_BATCH_SIZE, rows.length), total: rows.length });
+      }
+      setResult(aggregate);
       onImported();
     } catch (err) {
-      setError(err.message);
+      // Batches already sent before the failing one did go through (upserts
+      // are idempotent on barcode), so leave `result` unset — the button
+      // stays enabled and re-running the whole file is safe, it'll just
+      // re-upsert what already succeeded.
+      setError(
+        `${err.message} (${aggregate.imported} / ${rows.length} qator import qilingandan keyin to'xtadi — qayta urinib ko'ring)`
+      );
     } finally {
       setImporting(false);
     }
@@ -387,10 +411,23 @@ function ImportModal({ onClose, onImported }) {
           onChange={handleFile}
         />
 
-        {fileName && rows.length > 0 && !result && (
+        {fileName && rows.length > 0 && !result && !importing && (
           <p className="text-sm text-base-content/70">
             {fileName}: <strong>{rows.length}</strong> qator topildi.
           </p>
+        )}
+
+        {importing && progress && (
+          <div className="flex flex-col gap-1">
+            <progress
+              className="progress progress-primary w-full"
+              value={progress.done}
+              max={progress.total}
+            />
+            <p className="text-sm text-base-content/60">
+              {progress.done.toLocaleString()} / {progress.total.toLocaleString()} qator import qilindi...
+            </p>
+          </div>
         )}
 
         {error && <p className="text-sm text-error">{error}</p>}
