@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { generateBarcode, createProduct } from '../api/products.api';
 import { PageHeader } from '../components/PageHeader';
 import { Button } from '../components/Button';
+import { UNIT_OPTIONS, isFractionalUnit, unitSuffix } from '../data/units';
 
 export function BarcodeGeneratorPage() {
   const navigate = useNavigate();
@@ -11,6 +12,8 @@ export function BarcodeGeneratorPage() {
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
   const [stock, setStock] = useState('');
+  const [unit, setUnit] = useState('dona');
+  const isFractional = isFractionalUnit(unit);
   const [barcode, setBarcode] = useState(null);
   const [generating, setGenerating] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -48,7 +51,7 @@ export function BarcodeGeneratorPage() {
     setError('');
     setSaving(true);
     try {
-      await createProduct({ barcode, name, price: Number(price), stock: Number(stock || 0) });
+      await createProduct({ barcode, name, price: Number(price), stock: Number(stock || 0), unit });
       setSaved(true);
     } catch (err) {
       setError(err.message);
@@ -61,6 +64,7 @@ export function BarcodeGeneratorPage() {
     setName('');
     setPrice('');
     setStock('');
+    setUnit('dona');
     setBarcode(null);
     setSaved(false);
     setError('');
@@ -79,7 +83,7 @@ export function BarcodeGeneratorPage() {
       const gap = 6 * scale;
       const nameFont = `600 ${22 * scale}px sans-serif`;
       const priceFont = `${20 * scale}px sans-serif`;
-      const priceText = `${Number(price).toLocaleString()} so'm`;
+      const priceText = `${Number(price).toLocaleString()} so'm${unitSuffix(unit)}`;
       const barcodeWidth = img.width * scale;
       const barcodeHeight = img.height * scale;
 
@@ -151,24 +155,41 @@ export function BarcodeGeneratorPage() {
               required
             />
           </label>
+          <div className="block">
+            <span className="mb-1 block text-sm text-base-content/60">O'lchov birligi</span>
+            <div className="join w-full">
+              {UNIT_OPTIONS.map((o) => (
+                <button
+                  key={o.value}
+                  type="button"
+                  className={`btn btn-sm join-item flex-1 ${unit === o.value ? 'btn-primary' : 'btn-outline'}`}
+                  onClick={() => setUnit(o.value)}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="flex gap-3">
             <label className="block flex-1">
-              <span className="mb-1 block text-sm text-base-content/60">Narxi (so'm)</span>
+              <span className="mb-1 block text-sm text-base-content/60">Narxi (so'm{unitSuffix(unit)})</span>
               <input
                 className="input input-bordered w-full"
                 type="number"
                 min="0"
+                step={isFractional ? '0.01' : '1'}
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}
                 required
               />
             </label>
             <label className="block flex-1">
-              <span className="mb-1 block text-sm text-base-content/60">Qoldiq</span>
+              <span className="mb-1 block text-sm text-base-content/60">Qoldiq ({unit})</span>
               <input
                 className="input input-bordered w-full"
                 type="number"
                 min="0"
+                step={isFractional ? '0.001' : '1'}
                 value={stock}
                 onChange={(e) => setStock(e.target.value)}
               />
@@ -200,7 +221,9 @@ export function BarcodeGeneratorPage() {
             <>
               <div className="print-area flex flex-col items-center gap-2 rounded-field border border-base-300 bg-white p-4">
                 <p className="font-medium text-black">{name}</p>
-                <p className="text-sm text-black/70">{Number(price).toLocaleString()} so'm</p>
+                <p className="text-sm text-black/70">
+                  {Number(price).toLocaleString()} so'm{unitSuffix(unit)}
+                </p>
                 <svg ref={svgRef} />
               </div>
 

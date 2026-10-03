@@ -7,7 +7,7 @@ import { useAuth } from '../auth/AuthContext';
 import { useBarcodeScanner } from '../hooks/useBarcodeScanner';
 import { Button } from '../components/Button';
 import { PAYMENT_METHODS } from '../data/paymentMethods';
-import { roundQuantity, stepFor } from '../data/units';
+import { roundQuantity, stepFor, isFractionalUnit, unitSuffix } from '../data/units';
 
 // Bolds the substring of `name` that matched `query`, for the search dropdown.
 function highlightMatch(name, query) {
@@ -236,7 +236,7 @@ export function CashierPage() {
     try {
       await applyItemsChange(activeTicket._id, (items) => {
         const line = items.find((i) => i.productId === productId);
-        line.quantity = unit === 'kg' ? roundQuantity(value, unit) : Math.floor(value);
+        line.quantity = isFractionalUnit(unit) ? roundQuantity(value, unit) : Math.floor(value);
       });
     } catch (err) {
       setScanError(err.message);
@@ -388,7 +388,7 @@ export function CashierPage() {
                     <span className="flex-1 truncate">{highlightMatch(product.name, manualBarcode.trim())}</span>
                     <span className="shrink-0 text-base-content/50">
                       {product.price.toLocaleString()}
-                      {product.unit === 'kg' ? '/kg' : ''}
+                      {unitSuffix(product.unit)}
                     </span>
                   </button>
                 </li>
@@ -424,11 +424,13 @@ export function CashierPage() {
                   <tr key={item.product} className="animate-fade-up" style={{ '--i': i }}>
                     <td className="font-medium">
                       {item.name}
-                      {item.unit === 'kg' && <span className="ml-1 text-xs text-base-content/40">(kg)</span>}
+                      {item.unit !== 'dona' && (
+                        <span className="ml-1 text-xs text-base-content/40">({item.unit})</span>
+                      )}
                     </td>
                     <td>
                       {item.price.toLocaleString()}
-                      {item.unit === 'kg' && <span className="text-base-content/40">/kg</span>}
+                      {item.unit !== 'dona' && <span className="text-base-content/40">{unitSuffix(item.unit)}</span>}
                     </td>
                     <td>
                       <div className="join">

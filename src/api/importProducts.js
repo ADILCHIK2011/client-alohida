@@ -4,7 +4,8 @@ export function buildTemplateCsv() {
   return (
     IMPORT_TEMPLATE_HEADERS.join(',') +
     '\n4780012345678,Non,3000,2200,50,dona' +
-    '\n4780012345679,Pomidor,15000,11000,25.5,kg\n'
+    '\n4780012345679,Pomidor,15000,11000,25.5,kg' +
+    '\n4780012345680,Gazlama,8000,5500,12.5,metr\n'
   );
 }
 

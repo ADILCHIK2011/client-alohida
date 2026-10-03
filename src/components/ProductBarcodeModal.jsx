@@ -3,6 +3,7 @@ import JsBarcode from 'jsbarcode';
 import { Modal } from './Modal';
 import { Button } from './Button';
 import { downloadSvgAsPng } from '../utils/svgToPng';
+import { unitSuffix } from '../data/units';
 
 // CODE128 (not EAN13) — a product's barcode can come from a manufacturer, a
 // CSV import, or manual typing, so it isn't guaranteed to be a valid EAN13
@@ -37,7 +38,7 @@ export function ProductBarcodeModal({ product, onClose }) {
         <div className="print-area flex flex-col items-center gap-2 rounded-field border border-base-300 bg-white p-4">
           <p className="font-medium text-black">{product.name}</p>
           <p className="text-sm text-black/70">
-            {product.price.toLocaleString()} so'm{product.unit === 'kg' ? '/kg' : ''}
+            {product.price.toLocaleString()} so'm{unitSuffix(product.unit)}
           </p>
           <svg ref={svgRef} />
         </div>
