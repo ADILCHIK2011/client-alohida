@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import JsBarcode from 'jsbarcode';
 import { Modal } from './Modal';
 import { Button } from './Button';
-import { downloadSvgAsPng } from '../utils/svgToPng';
+import { downloadBarcodeLabelPng } from '../utils/svgToPng';
 import { unitSuffix } from '../data/units';
 
 // CODE128 (not EAN13) — a product's barcode can come from a manufacturer, a
@@ -25,7 +25,12 @@ export function ProductBarcodeModal({ product, onClose }) {
   }, [product?.barcode]);
 
   function handleDownload() {
-    downloadSvgAsPng(svgRef.current, `shtrix-kod-${product.barcode}.png`);
+    downloadBarcodeLabelPng({
+      svg: svgRef.current,
+      name: product.name,
+      price: `${product.price.toLocaleString()} so'm${unitSuffix(product.unit)}`,
+      filename: `shtrix-kod-${product.barcode}.png`,
+    });
   }
 
   function handlePrint() {
