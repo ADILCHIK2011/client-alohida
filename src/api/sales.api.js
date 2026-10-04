@@ -29,8 +29,11 @@ export function updateSaleItems(id, items) {
   return request(`/sales/${id}/items`, { method: 'PUT', body: { items } });
 }
 
-export function completeSale(id, paymentMethod) {
-  return request(`/sales/${id}/complete`, { method: 'POST', body: { paymentMethod } });
+export function completeSale(id, paymentMethod, debtorId) {
+  return request(`/sales/${id}/complete`, {
+    method: 'POST',
+    body: debtorId ? { paymentMethod, debtorId } : { paymentMethod },
+  });
 }
 
 export function cancelSale(id) {

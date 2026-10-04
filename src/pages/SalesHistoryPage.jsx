@@ -16,7 +16,7 @@ const PRESETS = [
 ];
 const PAGE_SIZE = 10;
 
-const PAYMENT_BADGE_TONE = { cash: 'success', card: 'primary', online: 'neutral' };
+const PAYMENT_BADGE_TONE = { cash: 'success', card: 'primary', online: 'neutral', nasiya: 'warning' };
 
 function isoDaysAgo(days) {
   const d = new Date();
@@ -166,6 +166,7 @@ export function SalesHistoryPage() {
                   <Badge tone={PAYMENT_BADGE_TONE[s.paymentMethod] || 'neutral'}>
                     {paymentMethodLabel(s.paymentMethod)}
                   </Badge>
+                  {s.debtor?.name && <span className="ml-1.5 text-xs text-base-content/50">{s.debtor.name}</span>}
                 </td>
                 <td>{s.items.length} xil</td>
                 <td className="font-medium">{formatMoney(s.total)}</td>

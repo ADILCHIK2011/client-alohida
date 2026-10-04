@@ -16,6 +16,7 @@ import { OverviewPage } from './pages/OverviewPage';
 import { SalesHistoryPage } from './pages/SalesHistoryPage';
 import { DeadStockPage } from './pages/DeadStockPage';
 import { AIPage } from './pages/AIPage';
+import { NasiyaPage } from './pages/NasiyaPage';
 import './styles/theme.css';
 
 function RootRedirect() {
@@ -50,6 +51,9 @@ function App() {
             </Route>
             <Route element={<RequirePermission permission="dead-stock" />}>
               <Route path="/dead-stock" element={<DeadStockPage />} />
+            </Route>
+            <Route element={<RequirePermission permission="nasiya" />}>
+              <Route path="/nasiya" element={<NasiyaPage />} />
             </Route>
             <Route element={<RequirePermission permission="analytics" />}>
               <Route path="/analytics" element={<AnalyticsPage />} />

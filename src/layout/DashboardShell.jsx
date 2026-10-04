@@ -16,6 +16,7 @@ import {
   Sparkles,
   Sun,
   Moon,
+  Wallet,
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { useTheme } from '../hooks/useTheme';
@@ -34,6 +35,7 @@ const NAV = [
   { to: '/barcode-generator', label: 'Shtrix-kod yaratish', icon: Barcode, ownerOnly: true },
   { to: '/sales-history', label: 'Savdolar tarixi', icon: History, permission: 'sales-history' },
   { to: '/dead-stock', label: "O'lik mahsulotlar", icon: PackageX, permission: 'dead-stock' },
+  { to: '/nasiya', label: 'Nasiya', icon: Wallet, permission: 'nasiya' },
   { to: '/workers', label: 'Xodimlar', icon: Users, ownerOnly: true },
   { to: '/analytics', label: 'Tahlillar', icon: BarChart3, permission: 'analytics' },
   { to: '/settings', label: 'Sozlamalar', icon: Settings, ownerOnly: true },

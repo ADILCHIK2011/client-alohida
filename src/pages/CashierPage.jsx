@@ -1,13 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Play, Plus, Search, Square, Trash2, X } from 'lucide-react';
+import { Play, Plus, Search, Square, Trash2, Wallet, X } from 'lucide-react';
 import { getProductByBarcode, searchProductsQuick } from '../api/products.api';
 import { cancelSale, completeSale, createSale, listMySales, updateSaleItems } from '../api/sales.api';
 import { endShift, getCurrentShift, startShift } from '../api/shifts.api';
+import { createDebtor, listDebtors } from '../api/debtors.api';
 import { useAuth } from '../auth/AuthContext';
 import { useBarcodeScanner } from '../hooks/useBarcodeScanner';
 import { Button } from '../components/Button';
+import { Modal } from '../components/Modal';
 import { PAYMENT_METHODS } from '../data/paymentMethods';
 import { roundQuantity, stepFor, isFractionalUnit, unitSuffix } from '../data/units';
+
+const CASHIER_PAYMENT_METHODS = PAYMENT_METHODS.filter((m) => m.value !== 'nasiya');
 
 // Bolds the substring of `name` that matched `query`, for the search dropdown.
 function highlightMatch(name, query) {
@@ -25,6 +29,10 @@ function highlightMatch(name, query) {
 export function CashierPage() {
   const { user } = useAuth();
   const isCashier = user?.role === 'cashier';
+  // This app always serves alohida markets, which are always Pro (see
+  // Market.js's `alohida` comment) — so nasiya only needs a permission
+  // check here, unlike client/'s CashierPage which also gates on plan.
+  const canNasiya = user?.role === 'owner' || user?.permissions?.includes('nasiya');
 
   // Owners aren't shift-tracked (see server's Shift model) — only cashiers
   // must start a shift before the till works.
@@ -68,6 +76,13 @@ export function CashierPage() {
   // In-progress edits to a line's quantity field, keyed by productId — lets
   // a cashier type "30" once for a bulk item instead of tapping "+" 30 times.
   const [qtyDrafts, setQtyDrafts] = useState({});
+
+  const [nasiyaOpen, setNasiyaOpen] = useState(false);
+  const [nasiyaQuery, setNasiyaQuery] = useState('');
+  const [nasiyaDebtors, setNasiyaDebtors] = useState([]);
+  const [nasiyaAdding, setNasiyaAdding] = useState(false);
+  const [nasiyaError, setNasiyaError] = useState('');
+  const [nasiyaBusy, setNasiyaBusy] = useState(false);
 
   useEffect(() => {
     listMySales().then((data) => {
@@ -269,21 +284,70 @@ export function CashierPage() {
     setPaymentMethods((prev) => ({ ...prev, [activeTicket._id]: value }));
   }
 
+  async function finishTicket(paymentMethod, debtorId) {
+    const ticketId = activeTicket._id;
+    await completeSale(ticketId, paymentMethod, debtorId);
+    setTickets((prev) => prev.filter((t) => t._id !== ticketId));
+    setPaymentMethods((prev) => {
+      const { [ticketId]: _omit, ...rest } = prev;
+      return rest;
+    });
+    await handleNewTicket();
+  }
+
   async function handleComplete() {
     if (!activeTicket || activeTicket.items.length === 0 || !selectedPayment) return;
     setCompleting(true);
     try {
-      await completeSale(activeTicket._id, selectedPayment);
-      setTickets((prev) => prev.filter((t) => t._id !== activeTicket._id));
-      setPaymentMethods((prev) => {
-        const { [activeTicket._id]: _omit, ...rest } = prev;
-        return rest;
-      });
-      await handleNewTicket();
+      await finishTicket(selectedPayment);
     } catch (err) {
       setScanError(err.message);
     } finally {
       setCompleting(false);
+    }
+  }
+
+  function openNasiyaPicker() {
+    if (!activeTicket || activeTicket.items.length === 0) return;
+    setNasiyaError('');
+    setNasiyaQuery('');
+    setNasiyaAdding(false);
+    setNasiyaOpen(true);
+  }
+
+  useEffect(() => {
+    if (!nasiyaOpen) return;
+    const timer = setTimeout(() => {
+      listDebtors(nasiyaQuery)
+        .then((data) => setNasiyaDebtors(data.debtors))
+        .catch((err) => setNasiyaError(err.message));
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [nasiyaOpen, nasiyaQuery]);
+
+  async function handleNasiyaPick(debtor) {
+    setNasiyaBusy(true);
+    setNasiyaError('');
+    try {
+      await finishTicket('nasiya', debtor._id);
+      setNasiyaOpen(false);
+    } catch (err) {
+      setNasiyaError(err.message);
+    } finally {
+      setNasiyaBusy(false);
+    }
+  }
+
+  async function handleNasiyaAdd(e) {
+    e.preventDefault();
+    setNasiyaError('');
+    const form = new FormData(e.target);
+    const name = form.get('name');
+    try {
+      const { debtor } = await createDebtor({ name, phone: form.get('phone') });
+      await handleNasiyaPick(debtor);
+    } catch (err) {
+      setNasiyaError(err.message);
     }
   }
 
@@ -492,7 +556,7 @@ export function CashierPage() {
             <div className="mb-3">
               <span className="mb-1.5 block text-xs text-base-content/50">To'lov turi</span>
               <div className="join w-full">
-                {PAYMENT_METHODS.map((m) => (
+                {CASHIER_PAYMENT_METHODS.map((m) => (
                   <button
                     key={m.value}
                     type="button"
@@ -519,6 +583,86 @@ export function CashierPage() {
             </button>
           </div>
         </div>
+      )}
+
+      {canNasiya && (
+        <button
+          type="button"
+          onClick={openNasiyaPicker}
+          disabled={!activeTicket || activeTicket.items.length === 0}
+          className="fixed bottom-6 right-6 z-30 flex items-center gap-2 rounded-field px-4 py-3 text-sm font-medium text-primary-content shadow-[0_10px_30px_-8px_hsl(var(--primary-h)_var(--primary-s)_45%/0.55)] transition-all duration-200 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0"
+          style={{ backgroundImage: 'var(--gradient-brand)' }}
+        >
+          <Wallet size={18} /> Nasiya
+        </button>
+      )}
+
+      {nasiyaOpen && (
+        <Modal title="Nasiyaga sotish" onClose={() => setNasiyaOpen(false)}>
+          <div className="flex flex-col gap-3">
+            <div className="relative">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-base-content/40" />
+              <input
+                className="input input-bordered w-full pl-9"
+                placeholder="Ism bo'yicha qidirish..."
+                value={nasiyaQuery}
+                onChange={(e) => setNasiyaQuery(e.target.value)}
+                autoFocus
+              />
+            </div>
+
+            {!nasiyaAdding ? (
+              <>
+                <div className="flex max-h-72 flex-col gap-1 overflow-y-auto">
+                  {nasiyaDebtors.map((d) => (
+                    <button
+                      key={d._id}
+                      type="button"
+                      disabled={nasiyaBusy}
+                      onClick={() => handleNasiyaPick(d)}
+                      className="flex items-center justify-between rounded-field px-3 py-2 text-left text-sm hover:bg-base-200 disabled:opacity-50"
+                    >
+                      <span className="font-medium">{d.name}</span>
+                      {d.balance > 0 && (
+                        <span className="text-xs text-base-content/50">{d.balance.toLocaleString()} so'm</span>
+                      )}
+                    </button>
+                  ))}
+                  {nasiyaDebtors.length === 0 && (
+                    <div className="py-4 text-center text-sm text-base-content/40">Hech kim topilmadi</div>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  className="text-left text-sm text-primary hover:underline"
+                  onClick={() => setNasiyaAdding(true)}
+                >
+                  + Yangi odam qo'shish
+                </button>
+              </>
+            ) : (
+              <form className="flex flex-col gap-3" onSubmit={handleNasiyaAdd}>
+                <label className="block">
+                  <span className="mb-1 block text-sm text-base-content/60">Ism</span>
+                  <input className="input input-bordered w-full" name="name" required autoFocus />
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-sm text-base-content/60">Telefon (ixtiyoriy)</span>
+                  <input className="input input-bordered w-full" name="phone" />
+                </label>
+                <div className="flex justify-end gap-2">
+                  <Button type="button" variant="secondary" onClick={() => setNasiyaAdding(false)}>
+                    Orqaga
+                  </Button>
+                  <Button type="submit" disabled={nasiyaBusy}>
+                    {nasiyaBusy ? '...' : 'Saqlab yakunlash'}
+                  </Button>
+                </div>
+              </form>
+            )}
+            {nasiyaError && <p className="text-sm text-error">{nasiyaError}</p>}
+          </div>
+        </Modal>
       )}
     </div>
   );

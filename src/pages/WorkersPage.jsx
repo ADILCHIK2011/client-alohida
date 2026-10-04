@@ -13,6 +13,7 @@ const PERMISSION_OPTIONS = [
   { key: 'sales-history', label: 'Savdolar tarixi' },
   { key: 'analytics', label: 'Tahlillar' },
   { key: 'dead-stock', label: "O'lik mahsulotlar" },
+  { key: 'nasiya', label: 'Nasiya' },
   { key: 'ai', label: 'AI yordamchi' },
 ];
 
