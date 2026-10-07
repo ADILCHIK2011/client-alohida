@@ -20,3 +20,7 @@ export function getDebtor(id) {
 export function recordPayment(id, data) {
   return request(`/debtors/${id}/payments`, { method: 'POST', body: data });
 }
+
+export function deleteDebtor(id) {
+  return request(`/debtors/${id}`, { method: 'DELETE' });
+}

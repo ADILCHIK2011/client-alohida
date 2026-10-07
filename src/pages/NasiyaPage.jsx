@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Search } from 'lucide-react';
-import { createDebtor, getDebtor, listDebtors, recordPayment } from '../api/debtors.api';
+import { createDebtor, deleteDebtor, getDebtor, listDebtors, recordPayment } from '../api/debtors.api';
 import { PageHeader } from '../components/PageHeader';
 import { Button } from '../components/Button';
 import { Modal } from '../components/Modal';
 import { Badge } from '../components/Badge';
+import { SaleReturnItems } from '../components/SaleReturnItems';
 
 function formatMoney(n) {
   return `${(n || 0).toLocaleString()} so'm`;
@@ -135,6 +136,9 @@ function DebtorDetail({ id, onClose, onChanged }) {
   const [loading, setLoading] = useState(true);
   const [payError, setPayError] = useState('');
   const [paying, setPaying] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const [expandedPurchase, setExpandedPurchase] = useState(null);
 
   function reload() {
     setLoading(true);
@@ -144,6 +148,21 @@ function DebtorDetail({ id, onClose, onChanged }) {
   }
 
   useEffect(reload, [id]);
+
+  async function handleDelete() {
+    setDeleteError('');
+    if (!window.confirm("Bu nasiyachini o'chirishni tasdiqlaysizmi?")) return;
+    setDeleting(true);
+    try {
+      await deleteDebtor(id);
+      onChanged();
+      onClose();
+    } catch (err) {
+      setDeleteError(err.message);
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   async function handlePay(e) {
     e.preventDefault();
@@ -203,13 +222,29 @@ function DebtorDetail({ id, onClose, onChanged }) {
             <div className="flex flex-col gap-2">
               {data.purchases.map((p) => (
                 <div key={p._id} className="rounded-field border border-base-300 p-3 text-sm">
-                  <div className="mb-1 flex items-center justify-between">
+                  <button
+                    type="button"
+                    className="flex w-full items-center justify-between text-left"
+                    onClick={() => setExpandedPurchase((cur) => (cur === p._id ? null : p._id))}
+                  >
                     <span className="text-base-content/50">{formatDate(p.completedAt)}</span>
                     <span className="font-medium">{formatMoney(p.total)}</span>
-                  </div>
-                  <div className="text-xs text-base-content/60">
-                    {p.items.map((it) => it.name).join(', ')}
-                  </div>
+                  </button>
+                  {expandedPurchase === p._id ? (
+                    <div className="mt-2">
+                      <SaleReturnItems
+                        sale={p}
+                        onUpdated={() => {
+                          reload();
+                          onChanged();
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <div className="text-xs text-base-content/60">
+                      {p.items.map((it) => it.name).join(', ')}
+                    </div>
+                  )}
                 </div>
               ))}
               {data.purchases.length === 0 && (
@@ -231,6 +266,13 @@ function DebtorDetail({ id, onClose, onChanged }) {
                 <div className="py-4 text-center text-sm text-base-content/40">To'lovlar yo'q</div>
               )}
             </div>
+          </div>
+
+          <div className="border-t border-base-300 pt-4">
+            {deleteError && <p className="mb-2 text-sm text-error">{deleteError}</p>}
+            <Button variant="danger" onClick={handleDelete} disabled={deleting}>
+              {deleting ? '...' : "Nasiyachini o'chirish"}
+            </Button>
           </div>
         </div>
       )}

@@ -21,7 +21,7 @@ export function getDaily(params) {
   return request(`/analytics/daily${qs(params)}`);
 }
 
-export function getDeadStock(params) {
+export function getAbcAnalysis(params) {
   return request(`/analytics/dead-stock${qs(params)}`);
 }
 

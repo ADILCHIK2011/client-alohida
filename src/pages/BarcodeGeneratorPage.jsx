@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { generateBarcode, createProduct } from '../api/products.api';
 import { PageHeader } from '../components/PageHeader';
 import { Button } from '../components/Button';
+import { printLabel } from '../utils/printLabel';
 import { UNIT_OPTIONS, isFractionalUnit, unitSuffix } from '../data/units';
 
 export function BarcodeGeneratorPage() {
@@ -23,7 +24,7 @@ export function BarcodeGeneratorPage() {
   useEffect(() => {
     if (!barcode || !svgRef.current) return;
     JsBarcode(svgRef.current, barcode, {
-      format: 'EAN13',
+      format: 'CODE128',
       width: 2.5,
       height: 90,
       fontSize: 18,
@@ -131,7 +132,7 @@ export function BarcodeGeneratorPage() {
   }
 
   function handlePrint() {
-    window.print();
+    printLabel({ svg: svgRef.current, name, price: `${Number(price).toLocaleString()} so'm${unitSuffix(unit)}` });
   }
 
   return (
@@ -172,7 +173,7 @@ export function BarcodeGeneratorPage() {
           </div>
           <div className="flex gap-3">
             <label className="block flex-1">
-              <span className="mb-1 block text-sm text-base-content/60">Narxi (so'm{unitSuffix(unit)})</span>
+              <span className="mb-1 block text-sm text-base-content/60">Sotuv narxi (so'm{unitSuffix(unit)})</span>
               <input
                 className="input input-bordered w-full"
                 type="number"
@@ -219,7 +220,7 @@ export function BarcodeGeneratorPage() {
 
           {barcode && (
             <>
-              <div className="print-area flex flex-col items-center gap-2 rounded-field border border-base-300 bg-white p-4">
+              <div className="flex flex-col items-center gap-2 rounded-field border border-base-300 bg-white p-4">
                 <p className="font-medium text-black">{name}</p>
                 <p className="text-sm text-black/70">
                   {Number(price).toLocaleString()} so'm{unitSuffix(unit)}

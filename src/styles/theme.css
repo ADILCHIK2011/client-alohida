@@ -296,22 +296,3 @@ h1, h2, h3 {
     transform: none !important;
   }
 }
-
-/* Isolates a single element (the barcode label) as the only thing that
-   reaches paper — everything else in the app is hidden for that print job. */
-@media print {
-  body * {
-    visibility: hidden;
-  }
-  .print-area,
-  .print-area * {
-    visibility: visible;
-  }
-  .print-area {
-    position: fixed;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-}

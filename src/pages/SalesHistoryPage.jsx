@@ -6,6 +6,7 @@ import { Button } from '../components/Button';
 import { Badge } from '../components/Badge';
 import { Modal } from '../components/Modal';
 import { Pagination } from '../components/Pagination';
+import { SaleReturnItems } from '../components/SaleReturnItems';
 import { PAYMENT_METHODS, paymentMethodLabel } from '../data/paymentMethods';
 import { formatQuantity } from '../data/units';
 
@@ -39,7 +40,7 @@ export function SalesHistoryPage() {
   const [loading, setLoading] = useState(true);
   const [openSale, setOpenSale] = useState(null);
 
-  useEffect(() => {
+  function reload() {
     setLoading(true);
     getSalesHistory({ from: isoDaysAgo(presetDays), paymentMethod: paymentFilter, page, limit: PAGE_SIZE })
       .then((data) => {
@@ -47,7 +48,9 @@ export function SalesHistoryPage() {
         setTotal(data.total);
       })
       .finally(() => setLoading(false));
-  }, [presetDays, paymentFilter, page]);
+  }
+
+  useEffect(reload, [presetDays, paymentFilter, page]);
 
   async function handleExport() {
     setExporting(true);
@@ -192,14 +195,13 @@ export function SalesHistoryPage() {
                 {paymentMethodLabel(openSale.paymentMethod)}
               </Badge>
             </div>
-            {openSale.items.map((item) => (
-              <div key={item.product} className="flex justify-between gap-2">
-                <span className="flex-1">
-                  {item.name} x{formatQuantity(item.quantity, item.unit)}
-                </span>
-                <span>{item.lineTotal.toLocaleString()}</span>
-              </div>
-            ))}
+            <SaleReturnItems
+              sale={openSale}
+              onUpdated={(updated) => {
+                setOpenSale(updated);
+                reload();
+              }}
+            />
             <div className="mt-2 flex justify-between border-t border-dashed border-base-300 pt-2 text-base font-semibold">
               <span>Jami</span>
               <span>{formatMoney(openSale.total)}</span>

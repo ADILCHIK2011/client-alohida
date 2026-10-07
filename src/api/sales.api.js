@@ -39,3 +39,7 @@ export function completeSale(id, paymentMethod, debtorId) {
 export function cancelSale(id) {
   return request(`/sales/${id}`, { method: 'DELETE' });
 }
+
+export function returnSaleItems(id, items) {
+  return request(`/sales/${id}/return`, { method: 'POST', body: { items } });
+}
