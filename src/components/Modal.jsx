@@ -1,8 +1,17 @@
+import { useRef } from 'react';
+
 export function Modal({ title, onClose, children }) {
+  const pointerDownOnOverlayRef = useRef(false);
+
   return (
     <div
       className="fixed inset-0 z-50 flex animate-overlay-fade items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
-      onClick={onClose}
+      onMouseDown={(e) => {
+        pointerDownOnOverlayRef.current = e.target === e.currentTarget;
+      }}
+      onClick={(e) => {
+        if (pointerDownOnOverlayRef.current && e.target === e.currentTarget) onClose();
+      }}
     >
       <div
         className="flex max-h-[85vh] w-96 max-w-[90vw] flex-col animate-scale-in rounded-box bg-base-100 p-0 shadow-xl"
