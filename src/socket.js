@@ -2,7 +2,7 @@ import { io } from 'socket.io-client';
 
 // Same-origin in dev (Vite proxies /socket.io to the server); in production
 // this points at the backend's own domain, since it's a separate deployment.
-const SOCKET_URL = import.meta.env.VITE_API_URL || undefined;
+const SOCKET_URL = (import.meta.env.VITE_API_URL || '').trim().replace(/\/+$/, '') || undefined;
 
 let socket = null;
 let currentToken = null;

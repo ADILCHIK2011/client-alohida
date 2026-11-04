@@ -4,7 +4,9 @@ const TOKEN_KEY = 'dokon_token';
 // var needed. In production the client and server are separate deployments
 // (different origins), so VITE_API_URL must point at the backend's base URL
 // (baked in at build time, since Vite only exposes import.meta.env at build).
-const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api';
+// Trailing slashes are stripped so "https://x.app/" does not become "https://x.app//api".
+const API_URL = (import.meta.env.VITE_API_URL || '').trim().replace(/\/+$/, '');
+const API_BASE = API_URL ? `${API_URL}/api` : '/api';
 
 export function getToken() {
   return localStorage.getItem(TOKEN_KEY);
