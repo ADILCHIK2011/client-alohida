@@ -68,6 +68,10 @@ export function CashierPage() {
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [highlightIndex, setHighlightIndex] = useState(-1);
+  // Only meaningful when multiple suggestions are showing — lets the cashier
+  // tick several matches and drop them into the cart in one action instead
+  // of re-typing the search after every single pick.
+  const [selectedSuggestionIds, setSelectedSuggestionIds] = useState(() => new Set());
   const [scanError, setScanError] = useState('');
   const [completing, setCompleting] = useState(false);
   // Keyed by ticket id so switching tabs never leaks one ticket's selected
@@ -133,22 +137,29 @@ export function CashierPage() {
     return sale;
   }
 
-  // Shared by a barcode scan and a search-dropdown click — both just need to
-  // add one unit of an already-resolved product to the active ticket.
-  async function addProductToCart(product) {
+  // Shared by a barcode scan and a search-dropdown pick — adds one unit of
+  // each already-resolved product to the active ticket in a single mutation,
+  // so picking several checked suggestions at once doesn't race.
+  async function addProductsToCart(products) {
     const ticket = activeTicket || (await handleNewTicket());
     try {
       await applyItemsChange(ticket._id, (items) => {
-        const existing = items.find((i) => i.productId === product._id);
-        if (existing) {
-          existing.quantity += 1;
-        } else {
-          items.push({ productId: product._id, quantity: 1 });
+        for (const product of products) {
+          const existing = items.find((i) => i.productId === product._id);
+          if (existing) {
+            existing.quantity += 1;
+          } else {
+            items.push({ productId: product._id, quantity: 1 });
+          }
         }
       });
     } catch (err) {
       setScanError(err.message);
     }
+  }
+
+  async function addProductToCart(product) {
+    await addProductsToCart([product]);
   }
 
   async function handleScan(barcode) {
@@ -178,6 +189,7 @@ export function CashierPage() {
     const query = manualBarcode.trim();
     if (!query) {
       setSuggestions([]);
+      setSelectedSuggestionIds(new Set());
       return;
     }
     const timer = setTimeout(() => {
@@ -185,6 +197,7 @@ export function CashierPage() {
         .then(({ products }) => {
           setSuggestions(products);
           setHighlightIndex(-1);
+          setSelectedSuggestionIds(new Set());
         })
         .catch(() => {});
     }, 200);
@@ -197,7 +210,38 @@ export function CashierPage() {
     setSuggestions([]);
     setShowSuggestions(false);
     setHighlightIndex(-1);
+    setSelectedSuggestionIds(new Set());
     await addProductToCart(product);
+  }
+
+  function toggleSuggestionSelection(productId) {
+    setSelectedSuggestionIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(productId)) {
+        next.delete(productId);
+      } else {
+        next.add(productId);
+      }
+      return next;
+    });
+  }
+
+  function toggleSelectAllSuggestions() {
+    setSelectedSuggestionIds((prev) =>
+      prev.size === suggestions.length ? new Set() : new Set(suggestions.map((p) => p._id))
+    );
+  }
+
+  async function confirmSelectedSuggestions() {
+    const chosen = suggestions.filter((p) => selectedSuggestionIds.has(p._id));
+    if (chosen.length === 0) return;
+    setScanError('');
+    setManualBarcode('');
+    setSuggestions([]);
+    setShowSuggestions(false);
+    setHighlightIndex(-1);
+    setSelectedSuggestionIds(new Set());
+    await addProductsToCart(chosen);
   }
 
   function handleSearchKeyDown(e) {
@@ -429,6 +473,7 @@ export function CashierPage() {
               onClick={() => {
                 setManualBarcode('');
                 setSuggestions([]);
+                setSelectedSuggestionIds(new Set());
               }}
               aria-label="Tozalash"
             >
@@ -436,28 +481,79 @@ export function CashierPage() {
             </button>
           )}
           {showSuggestions && suggestions.length > 0 && (
-            <ul className="absolute z-20 mt-1 max-h-80 w-full overflow-auto rounded-box border border-base-300 bg-base-100 py-1 shadow-xl">
-              {suggestions.map((product, i) => (
-                <li key={product._id}>
+            <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-box border border-base-300 bg-base-100 shadow-xl">
+              {suggestions.length > 1 && (
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-2 border-b border-base-300 px-3 py-2 text-xs text-base-content/50 hover:bg-base-200"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={toggleSelectAllSuggestions}
+                >
+                  <input
+                    type="checkbox"
+                    className="checkbox checkbox-xs shrink-0"
+                    checked={selectedSuggestionIds.size === suggestions.length}
+                    readOnly
+                  />
+                  Barchasini tanlash
+                  <span className="ml-auto text-base-content/40">{suggestions.length} ta topildi</span>
+                </button>
+              )}
+              <ul className="max-h-64 overflow-auto py-1">
+                {suggestions.map((product, i) => {
+                  const multi = suggestions.length > 1;
+                  const checked = selectedSuggestionIds.has(product._id);
+                  return (
+                    <li key={product._id}>
+                      <button
+                        type="button"
+                        className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm ${
+                          i === highlightIndex ? 'bg-base-200' : 'hover:bg-base-200'
+                        }`}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onMouseEnter={() => setHighlightIndex(i)}
+                        onClick={() => (multi ? toggleSuggestionSelection(product._id) : selectSuggestion(product))}
+                      >
+                        {multi ? (
+                          <input
+                            type="checkbox"
+                            className="checkbox checkbox-sm shrink-0"
+                            checked={checked}
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={() => toggleSuggestionSelection(product._id)}
+                          />
+                        ) : (
+                          <Search size={14} className="shrink-0 text-base-content/40" />
+                        )}
+                        <span className="flex-1 truncate">{highlightMatch(product.name, manualBarcode.trim())}</span>
+                        <span className="shrink-0 text-base-content/50">
+                          {product.price.toLocaleString()}
+                          {unitSuffix(product.unit)}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+              {suggestions.length > 1 && (
+                <div className="flex items-center justify-between gap-2 border-t border-base-300 bg-base-200/50 px-3 py-2">
+                  <span className="text-xs text-base-content/60">
+                    {selectedSuggestionIds.size > 0
+                      ? `${selectedSuggestionIds.size} ta tanlandi`
+                      : 'Mahsulotlarni belgilang'}
+                  </span>
                   <button
                     type="button"
-                    className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm ${
-                      i === highlightIndex ? 'bg-base-200' : 'hover:bg-base-200'
-                    }`}
+                    className="btn btn-primary btn-xs"
+                    disabled={selectedSuggestionIds.size === 0}
                     onMouseDown={(e) => e.preventDefault()}
-                    onMouseEnter={() => setHighlightIndex(i)}
-                    onClick={() => selectSuggestion(product)}
+                    onClick={confirmSelectedSuggestions}
                   >
-                    <Search size={14} className="shrink-0 text-base-content/40" />
-                    <span className="flex-1 truncate">{highlightMatch(product.name, manualBarcode.trim())}</span>
-                    <span className="shrink-0 text-base-content/50">
-                      {product.price.toLocaleString()}
-                      {unitSuffix(product.unit)}
-                    </span>
+                    Savdoga qo'shish
                   </button>
-                </li>
-              ))}
-            </ul>
+                </div>
+              )}
+            </div>
           )}
         </div>
         <Button type="submit" variant="secondary">
