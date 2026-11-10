@@ -333,11 +333,18 @@ export function CashierPage() {
     }
   }
 
-  async function handleCancelTicket() {
-    if (!activeTicket) return;
-    await cancelSale(activeTicket._id);
-    setTickets((prev) => prev.filter((t) => t._id !== activeTicket._id));
-    setActiveId(null);
+  // Used both by the ticket tabs' hover-X (any ticket) and the "Savdoni
+  // bekor qilish" button (always the active one).
+  async function handleCancelTicket(ticketId) {
+    const targetId = ticketId || activeTicket?._id;
+    if (!targetId) return;
+    await cancelSale(targetId);
+    setTickets((prev) => prev.filter((t) => t._id !== targetId));
+    setActiveId((prev) => {
+      if (prev !== targetId) return prev;
+      const remaining = ticketsRef.current.filter((t) => t._id !== targetId);
+      return remaining[0]?._id || null;
+    });
   }
 
   const selectedPayment = activeTicket ? paymentMethods[activeTicket._id] : null;
@@ -447,19 +454,30 @@ export function CashierPage() {
       {/* Ticket tabs */}
       <div className="mb-4 flex flex-wrap items-center gap-2">
         {tickets.map((t, idx) => (
-          <button
-            key={t._id}
-            onClick={() => setActiveId(t._id)}
-            className={`animate-pop rounded-field px-3 py-1.5 text-sm font-medium transition-all ${
-              t._id === activeId
-                ? 'text-primary-content shadow-[0_6px_16px_-6px_hsl(var(--primary-h)_var(--primary-s)_45%/0.55)]'
-                : 'bg-base-100 text-base-content/70 hover:bg-base-300 border border-base-300'
-            }`}
-            style={t._id === activeId ? { backgroundImage: 'var(--gradient-brand)' } : undefined}
-          >
-            Savdo {idx + 1}
-            {t.items.length > 0 && <span className="ml-1 opacity-70">({t.items.length})</span>}
-          </button>
+          <div key={t._id} className="group relative animate-pop">
+            <button
+              onClick={() => setActiveId(t._id)}
+              className={`rounded-field px-3 py-1.5 pr-6 text-sm font-medium transition-all ${
+                t._id === activeId
+                  ? 'text-primary-content shadow-[0_6px_16px_-6px_hsl(var(--primary-h)_var(--primary-s)_45%/0.55)]'
+                  : 'bg-base-100 text-base-content/70 hover:bg-base-300 border border-base-300'
+              }`}
+              style={t._id === activeId ? { backgroundImage: 'var(--gradient-brand)' } : undefined}
+            >
+              Savdo {idx + 1}
+              {t.items.length > 0 && <span className="ml-1 opacity-70">({t.items.length})</span>}
+            </button>
+            <button
+              type="button"
+              aria-label="Savdoni o'chirish"
+              onClick={() => handleCancelTicket(t._id)}
+              className={`absolute right-1 top-1/2 -translate-y-1/2 rounded-full p-0.5 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-black/15 ${
+                t._id === activeId ? 'text-primary-content' : 'text-base-content/50'
+              }`}
+            >
+              <X size={12} />
+            </button>
+          </div>
         ))}
         <button
           onClick={handleNewTicket}
