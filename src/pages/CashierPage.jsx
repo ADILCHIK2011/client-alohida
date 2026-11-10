@@ -215,6 +215,8 @@ export function CashierPage() {
   }
 
   function toggleSuggestionSelection(productId) {
+    const product = suggestions.find((p) => p._id === productId);
+    if (!product || product.stock <= 0) return;
     setSelectedSuggestionIds((prev) => {
       const next = new Set(prev);
       if (next.has(productId)) {
@@ -226,9 +228,14 @@ export function CashierPage() {
     });
   }
 
+  // Out-of-stock suggestions are rendered disabled and never selectable, so
+  // "select all" only ever targets the ones that can actually be added —
+  // otherwise one unavailable item in the batch would get the whole
+  // multi-add rejected by the server's stock check (see updateItems).
   function toggleSelectAllSuggestions() {
+    const selectableIds = suggestions.filter((p) => p.stock > 0).map((p) => p._id);
     setSelectedSuggestionIds((prev) =>
-      prev.size === suggestions.length ? new Set() : new Set(suggestions.map((p) => p._id))
+      prev.size === selectableIds.length ? new Set() : new Set(selectableIds)
     );
   }
 
@@ -244,14 +251,26 @@ export function CashierPage() {
     await addProductsToCart(chosen);
   }
 
+  // Skips over out-of-stock suggestions (rendered disabled) so arrow
+  // navigation can't land the highlight on one.
+  function nextSelectableIndex(list, from, dir) {
+    if (!list.some((p) => p.stock > 0)) return -1;
+    let i = from;
+    for (let step = 0; step < list.length; step++) {
+      i = (i + dir + list.length) % list.length;
+      if (list[i].stock > 0) return i;
+    }
+    return from;
+  }
+
   function handleSearchKeyDown(e) {
     if (!showSuggestions || suggestions.length === 0) return;
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setHighlightIndex((i) => (i + 1) % suggestions.length);
+      setHighlightIndex((i) => nextSelectableIndex(suggestions, i, 1));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      setHighlightIndex((i) => (i <= 0 ? suggestions.length - 1 : i - 1));
+      setHighlightIndex((i) => nextSelectableIndex(suggestions, i, -1));
     } else if (e.key === 'Escape') {
       setShowSuggestions(false);
       setHighlightIndex(-1);
@@ -260,7 +279,7 @@ export function CashierPage() {
 
   async function handleManualSubmit(e) {
     e.preventDefault();
-    if (showSuggestions && highlightIndex >= 0 && suggestions[highlightIndex]) {
+    if (showSuggestions && highlightIndex >= 0 && suggestions[highlightIndex]?.stock > 0) {
       await selectSuggestion(suggestions[highlightIndex]);
       return;
     }
@@ -481,7 +500,7 @@ export function CashierPage() {
             </button>
           )}
           {showSuggestions && suggestions.length > 0 && (
-            <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-box border border-base-300 bg-base-100 shadow-xl">
+            <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-box border border-base-300 bg-base-100 shadow-xl sm:w-[28rem]">
               {suggestions.length > 1 && (
                 <button
                   type="button"
@@ -492,7 +511,10 @@ export function CashierPage() {
                   <input
                     type="checkbox"
                     className="checkbox checkbox-xs shrink-0"
-                    checked={selectedSuggestionIds.size === suggestions.length}
+                    checked={
+                      selectedSuggestionIds.size > 0 &&
+                      selectedSuggestionIds.size === suggestions.filter((p) => p.stock > 0).length
+                    }
                     readOnly
                   />
                   Barchasini tanlash
@@ -503,32 +525,49 @@ export function CashierPage() {
                 {suggestions.map((product, i) => {
                   const multi = suggestions.length > 1;
                   const checked = selectedSuggestionIds.has(product._id);
+                  const outOfStock = product.stock <= 0;
                   return (
                     <li key={product._id}>
                       <button
                         type="button"
-                        className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm ${
-                          i === highlightIndex ? 'bg-base-200' : 'hover:bg-base-200'
+                        disabled={outOfStock}
+                        className={`flex w-full items-start gap-2 px-3 py-2 text-left text-sm ${
+                          outOfStock
+                            ? 'cursor-not-allowed opacity-40'
+                            : i === highlightIndex
+                              ? 'bg-base-200'
+                              : 'hover:bg-base-200'
                         }`}
                         onMouseDown={(e) => e.preventDefault()}
-                        onMouseEnter={() => setHighlightIndex(i)}
-                        onClick={() => (multi ? toggleSuggestionSelection(product._id) : selectSuggestion(product))}
+                        onMouseEnter={() => !outOfStock && setHighlightIndex(i)}
+                        onClick={() =>
+                          !outOfStock && (multi ? toggleSuggestionSelection(product._id) : selectSuggestion(product))
+                        }
                       >
                         {multi ? (
                           <input
                             type="checkbox"
-                            className="checkbox checkbox-sm shrink-0"
+                            className="checkbox checkbox-sm mt-0.5 shrink-0"
                             checked={checked}
+                            disabled={outOfStock}
                             onClick={(e) => e.stopPropagation()}
                             onChange={() => toggleSuggestionSelection(product._id)}
                           />
                         ) : (
-                          <Search size={14} className="shrink-0 text-base-content/40" />
+                          <Search size={14} className="mt-0.5 shrink-0 text-base-content/40" />
                         )}
-                        <span className="flex-1 truncate">{highlightMatch(product.name, manualBarcode.trim())}</span>
-                        <span className="shrink-0 text-base-content/50">
-                          {product.price.toLocaleString()}
-                          {unitSuffix(product.unit)}
+                        <span className="flex-1 whitespace-normal break-words">
+                          {highlightMatch(product.name, manualBarcode.trim())}
+                        </span>
+                        <span className="shrink-0 whitespace-nowrap text-right text-base-content/50">
+                          {outOfStock ? (
+                            <span className="font-medium text-error">Tugagan</span>
+                          ) : (
+                            <>
+                              {product.price.toLocaleString()}
+                              {unitSuffix(product.unit)}
+                            </>
+                          )}
                         </span>
                       </button>
                     </li>
