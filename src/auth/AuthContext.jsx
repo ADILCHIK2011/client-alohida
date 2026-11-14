@@ -53,8 +53,8 @@ export function AuthProvider({ children }) {
     };
   }, [user?.id]);
 
-  async function login(marketSlug, username, password) {
-    const data = await loginApi(marketSlug, username, password);
+  async function login(password) {
+    const data = await loginApi(password);
     setToken(data.token);
     setUser(data.user);
     connectSocket(data.token);

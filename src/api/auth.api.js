@@ -1,7 +1,7 @@
 import { request } from './http';
 
-export function login(marketSlug, username, password) {
-  return request('/auth/login', { method: 'POST', body: { marketSlug, username, password } });
+export function login(password) {
+  return request('/auth/alohida-login', { method: 'POST', body: { password } });
 }
 
 export function adminLogin(username, password) {

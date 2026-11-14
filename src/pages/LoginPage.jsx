@@ -10,8 +10,6 @@ const BARCODE_WIDTHS = [2, 1, 3, 1, 2, 4, 1, 2, 1, 3, 2, 1, 4, 1, 2, 3, 1, 2, 4,
 export function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
-  const [marketSlug, setMarketSlug] = useState('');
-  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -22,7 +20,7 @@ export function LoginPage() {
     setError('');
     setSubmitting(true);
     try {
-      const user = await login(marketSlug, username, password);
+      const user = await login(password);
       navigate(user.role === 'owner' ? '/overview' : '/cashier');
     } catch (err) {
       setError(err.message);
@@ -77,34 +75,16 @@ export function LoginPage() {
           className="tilt-card w-full max-w-sm animate-scale-in"
         >
           <h1 className="mb-1 font-heading text-2xl font-semibold">Xush kelibsiz</h1>
-          <p className="mb-7 text-sm text-base-content/50">Boshqaruv paneliga kirish uchun maʼlumotlaringizni kiriting.</p>
+          <p className="mb-7 text-sm text-base-content/50">Boshqaruv paneliga kirish uchun parolingizni kiriting.</p>
 
-          <label className="mb-3 block animate-fade-up" style={{ '--i': 1 }}>
-            <span className="mb-1 block text-sm text-base-content/60">Do'kon kodi</span>
-            <input
-              className="input input-bordered w-full"
-              value={marketSlug}
-              onChange={(e) => setMarketSlug(e.target.value)}
-              autoFocus
-            />
-          </label>
-
-          <label className="mb-3 block animate-fade-up" style={{ '--i': 2 }}>
-            <span className="mb-1 block text-sm text-base-content/60">Foydalanuvchi nomi</span>
-            <input
-              className="input input-bordered w-full"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-            />
-          </label>
-
-          <label className="mb-4 block animate-fade-up" style={{ '--i': 3 }}>
+          <label className="mb-4 block animate-fade-up" style={{ '--i': 1 }}>
             <span className="mb-1 block text-sm text-base-content/60">Parol</span>
             <input
               className="input input-bordered w-full"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              autoFocus
             />
           </label>
 
