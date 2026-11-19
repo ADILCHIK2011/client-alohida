@@ -29,11 +29,11 @@ export function updateSaleItems(id, items) {
   return request(`/sales/${id}/items`, { method: 'PUT', body: { items } });
 }
 
-export function completeSale(id, paymentMethod, debtorId) {
-  return request(`/sales/${id}/complete`, {
-    method: 'POST',
-    body: debtorId ? { paymentMethod, debtorId } : { paymentMethod },
-  });
+export function completeSale(id, paymentMethod, debtorId, breakdown) {
+  const body = { paymentMethod };
+  if (debtorId) body.debtorId = debtorId;
+  if (breakdown) body.breakdown = breakdown;
+  return request(`/sales/${id}/complete`, { method: 'POST', body });
 }
 
 export function cancelSale(id) {

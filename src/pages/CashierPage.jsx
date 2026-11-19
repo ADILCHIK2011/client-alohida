@@ -11,7 +11,10 @@ import { Modal } from '../components/Modal';
 import { PAYMENT_METHODS } from '../data/paymentMethods';
 import { roundQuantity, stepFor, isFractionalUnit, unitSuffix } from '../data/units';
 
-const CASHIER_PAYMENT_METHODS = PAYMENT_METHODS.filter((m) => m.value !== 'nasiya');
+// 'mixed' is excluded too — it has its own toggle+amount UI below this row
+// (see the "Aralash to'lov" block in the render) rather than being a plain
+// button here.
+const CASHIER_PAYMENT_METHODS = PAYMENT_METHODS.filter((m) => m.value !== 'nasiya' && m.value !== 'mixed');
 
 // Bolds the substring of `name` that matched `query`, for the search dropdown.
 function highlightMatch(name, query) {
@@ -75,11 +78,19 @@ export function CashierPage() {
   const [scanError, setScanError] = useState('');
   const [completing, setCompleting] = useState(false);
   // Keyed by ticket id so switching tabs never leaks one ticket's selected
-  // payment method onto another.
+  // payment method onto another. 'mixed' is one of the values this can hold,
+  // alongside the plain cash/card/online methods.
   const [paymentMethods, setPaymentMethods] = useState({});
+  // Mixed ("aralash") payment UI state per ticket id — which of
+  // cash/card/online are toggled on, and the amount typed for each.
+  const [mixedByTicket, setMixedByTicket] = useState({});
   // In-progress edits to a line's quantity field, keyed by productId — lets
   // a cashier type "30" once for a bulk item instead of tapping "+" 30 times.
   const [qtyDrafts, setQtyDrafts] = useState({});
+  // In-progress edits to a line's price field, keyed by productId — lets a
+  // cashier give a one-off discount to a client at checkout (see
+  // updateItems() in sales.controller.js).
+  const [priceDrafts, setPriceDrafts] = useState({});
 
   const [nasiyaOpen, setNasiyaOpen] = useState(false);
   const [nasiyaQuery, setNasiyaQuery] = useState('');
@@ -119,7 +130,11 @@ export function CashierPage() {
   async function applyItemsChange(ticketId, mutate) {
     return enqueueMutation(ticketId, async () => {
       const current = ticketsRef.current.find((t) => t._id === ticketId);
-      const items = current.items.map((i) => ({ productId: i.product, quantity: i.quantity }));
+      // `price` is carried forward on every mutation (quantity +/-, remove,
+      // etc.) so a cashier's discount survives until explicitly changed —
+      // see updateItems() in sales.controller.js, which re-resolves the
+      // catalog price whenever `price` is omitted.
+      const items = current.items.map((i) => ({ productId: i.product, quantity: i.quantity, price: i.price }));
       mutate(items);
       const filtered = items.filter((i) => i.quantity > 0);
       const { sale } = await updateSaleItems(ticketId, filtered);
@@ -321,6 +336,26 @@ export function CashierPage() {
     }
   }
 
+  async function commitPriceDraft(productId) {
+    const draft = priceDrafts[productId];
+    setPriceDrafts((prev) => {
+      const { [productId]: _omit, ...rest } = prev;
+      return rest;
+    });
+    if (draft === undefined) return;
+    const value = Number(String(draft).replace(',', '.'));
+    if (!Number.isFinite(value) || value <= 0) return;
+    setScanError('');
+    try {
+      await applyItemsChange(activeTicket._id, (items) => {
+        const line = items.find((i) => i.productId === productId);
+        line.price = value;
+      });
+    } catch (err) {
+      setScanError(err.message);
+    }
+  }
+
   async function removeLine(productId) {
     setScanError('');
     try {
@@ -349,16 +384,55 @@ export function CashierPage() {
 
   const selectedPayment = activeTicket ? paymentMethods[activeTicket._id] : null;
 
+  const EMPTY_MIXED = { cash: { on: false, amount: '' }, card: { on: false, amount: '' }, online: { on: false, amount: '' } };
+  const activeMixed = activeTicket ? mixedByTicket[activeTicket._id] || EMPTY_MIXED : EMPTY_MIXED;
+  const mixedSum = CASHIER_PAYMENT_METHODS.reduce((sum, m) => {
+    if (!activeMixed[m.value].on) return sum;
+    const v = Number(activeMixed[m.value].amount);
+    return sum + (Number.isFinite(v) ? v : 0);
+  }, 0);
+  const mixedValid =
+    CASHIER_PAYMENT_METHODS.some((m) => activeMixed[m.value].on) &&
+    CASHIER_PAYMENT_METHODS.every((m) => !activeMixed[m.value].on || Number(activeMixed[m.value].amount) > 0) &&
+    !!activeTicket &&
+    mixedSum === activeTicket.total;
+
   function selectPaymentMethod(value) {
     if (!activeTicket) return;
     setPaymentMethods((prev) => ({ ...prev, [activeTicket._id]: value }));
   }
 
-  async function finishTicket(paymentMethod, debtorId) {
+  function toggleMixedMethod(method) {
+    if (!activeTicket) return;
     const ticketId = activeTicket._id;
-    await completeSale(ticketId, paymentMethod, debtorId);
+    setMixedByTicket((prev) => {
+      const current = prev[ticketId] || EMPTY_MIXED;
+      const wasOn = current[method].on;
+      return {
+        ...prev,
+        [ticketId]: { ...current, [method]: { on: !wasOn, amount: wasOn ? '' : current[method].amount } },
+      };
+    });
+  }
+
+  function setMixedAmount(method, value) {
+    if (!activeTicket) return;
+    const ticketId = activeTicket._id;
+    setMixedByTicket((prev) => {
+      const current = prev[ticketId] || EMPTY_MIXED;
+      return { ...prev, [ticketId]: { ...current, [method]: { ...current[method], amount: value } } };
+    });
+  }
+
+  async function finishTicket(paymentMethod, debtorId, breakdown) {
+    const ticketId = activeTicket._id;
+    await completeSale(ticketId, paymentMethod, debtorId, breakdown);
     setTickets((prev) => prev.filter((t) => t._id !== ticketId));
     setPaymentMethods((prev) => {
+      const { [ticketId]: _omit, ...rest } = prev;
+      return rest;
+    });
+    setMixedByTicket((prev) => {
       const { [ticketId]: _omit, ...rest } = prev;
       return rest;
     });
@@ -367,9 +441,18 @@ export function CashierPage() {
 
   async function handleComplete() {
     if (!activeTicket || activeTicket.items.length === 0 || !selectedPayment) return;
+    if (selectedPayment === 'mixed' && !mixedValid) return;
     setCompleting(true);
     try {
-      await finishTicket(selectedPayment);
+      if (selectedPayment === 'mixed') {
+        const breakdown = CASHIER_PAYMENT_METHODS.filter((m) => activeMixed[m.value].on).map((m) => ({
+          method: m.value,
+          amount: Number(activeMixed[m.value].amount),
+        }));
+        await finishTicket('mixed', undefined, breakdown);
+      } else {
+        await finishTicket(selectedPayment);
+      }
     } catch (err) {
       setScanError(err.message);
     } finally {
@@ -646,8 +729,31 @@ export function CashierPage() {
                       )}
                     </td>
                     <td>
-                      {item.price.toLocaleString()}
-                      {item.unit !== 'dona' && <span className="text-base-content/40">{unitSuffix(item.unit)}</span>}
+                      <div className="flex items-center gap-1.5">
+                        {item.originalPrice != null && (
+                          <span className="text-xs text-base-content/40 line-through">
+                            {item.originalPrice.toLocaleString()}
+                          </span>
+                        )}
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          className="input input-bordered input-sm w-24"
+                          value={priceDrafts[item.product] ?? item.price}
+                          onChange={(e) =>
+                            setPriceDrafts((prev) => ({ ...prev, [item.product]: e.target.value }))
+                          }
+                          onFocus={(e) => e.target.select()}
+                          onBlur={() => commitPriceDraft(item.product)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              e.target.blur();
+                            }
+                          }}
+                        />
+                        {item.unit !== 'dona' && <span className="text-base-content/40">{unitSuffix(item.unit)}</span>}
+                      </div>
                     </td>
                     <td>
                       <div className="join">
@@ -720,11 +826,55 @@ export function CashierPage() {
                   </button>
                 ))}
               </div>
+              <button
+                type="button"
+                className={`btn btn-sm mt-1.5 w-full ${selectedPayment === 'mixed' ? 'btn-primary' : 'btn-outline'}`}
+                onClick={() => selectPaymentMethod('mixed')}
+              >
+                Aralash to'lov
+              </button>
+              {selectedPayment === 'mixed' && (
+                <div className="mt-2 flex flex-col gap-2 rounded-field border border-base-300 p-3">
+                  {CASHIER_PAYMENT_METHODS.map((m) => {
+                    const state = activeMixed[m.value];
+                    return (
+                      <div key={m.value} className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          className="toggle toggle-sm toggle-primary"
+                          checked={state.on}
+                          onChange={() => toggleMixedMethod(m.value)}
+                        />
+                        <span className="w-16 text-sm">{m.label}</span>
+                        {state.on && (
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            className="input input-bordered input-sm flex-1"
+                            placeholder="Summa"
+                            value={state.amount}
+                            onChange={(e) => setMixedAmount(m.value, e.target.value)}
+                            autoFocus
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
+                  <div className={`text-xs ${mixedValid ? 'text-success' : 'text-base-content/50'}`}>
+                    Kiritilgan: {mixedSum.toLocaleString()} / {activeTicket.total.toLocaleString()} so'm
+                  </div>
+                </div>
+              )}
             </div>
             <Button
               className="mb-2 w-full"
               onClick={handleComplete}
-              disabled={completing || activeTicket.items.length === 0 || !selectedPayment}
+              disabled={
+                completing ||
+                activeTicket.items.length === 0 ||
+                !selectedPayment ||
+                (selectedPayment === 'mixed' && !mixedValid)
+              }
             >
               {completing ? 'Yakunlanmoqda...' : 'Savdoni yakunlash'}
             </Button>

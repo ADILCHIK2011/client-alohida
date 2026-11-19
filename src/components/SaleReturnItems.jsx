@@ -44,6 +44,9 @@ export function SaleReturnItems({ sale, onUpdated }) {
                 {returned > 0 && (
                   <Badge tone="warning">{formatQuantity(returned, item.unit)} qaytarilgan</Badge>
                 )}
+                {item.originalPrice != null && (
+                  <Badge tone="success">Chegirma qilingan -&gt; {item.price.toLocaleString()} so'm</Badge>
+                )}
               </div>
             </div>
             <span className="whitespace-nowrap">{item.lineTotal.toLocaleString()}</span>

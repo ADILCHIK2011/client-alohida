@@ -17,7 +17,7 @@ const PRESETS = [
 ];
 const PAGE_SIZE = 10;
 
-const PAYMENT_BADGE_TONE = { cash: 'success', card: 'primary', online: 'neutral', nasiya: 'warning' };
+const PAYMENT_BADGE_TONE = { cash: 'success', card: 'primary', online: 'neutral', nasiya: 'warning', mixed: 'warning' };
 
 function isoDaysAgo(days) {
   const d = new Date();
@@ -195,6 +195,16 @@ export function SalesHistoryPage() {
                 {paymentMethodLabel(openSale.paymentMethod)}
               </Badge>
             </div>
+            {openSale.paymentMethod === 'mixed' && openSale.paymentBreakdown?.length > 0 && (
+              <div className="mb-1 flex flex-col gap-0.5 text-xs text-base-content/60">
+                {openSale.paymentBreakdown.map((p) => (
+                  <div key={p.method} className="flex justify-between">
+                    <span>{paymentMethodLabel(p.method)}</span>
+                    <span>{formatMoney(p.amount)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
             <SaleReturnItems
               sale={openSale}
               onUpdated={(updated) => {
