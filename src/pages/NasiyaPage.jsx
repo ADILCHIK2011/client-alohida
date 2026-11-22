@@ -220,7 +220,15 @@ function DebtorDetail({ id, onClose, onChanged }) {
           <div>
             <h3 className="mb-2 text-sm font-medium text-base-content/70">Xaridlar tarixi</h3>
             <div className="flex flex-col gap-2">
-              {data.purchases.map((p) => (
+              {data.purchases.map((p) => {
+                // A 'mixed' sale only credited its nasiya slice to this
+                // debtor, not the whole sale — show that slice, not p.total
+                // (see getOne() in debtors.controller.js).
+                const creditedAmount =
+                  p.paymentMethod === 'mixed'
+                    ? p.paymentBreakdown?.find((b) => b.method === 'nasiya')?.amount || 0
+                    : p.total;
+                return (
                 <div key={p._id} className="rounded-field border border-base-300 p-3 text-sm">
                   <button
                     type="button"
@@ -228,7 +236,14 @@ function DebtorDetail({ id, onClose, onChanged }) {
                     onClick={() => setExpandedPurchase((cur) => (cur === p._id ? null : p._id))}
                   >
                     <span className="text-base-content/50">{formatDate(p.completedAt)}</span>
-                    <span className="font-medium">{formatMoney(p.total)}</span>
+                    <span className="font-medium">
+                      {formatMoney(creditedAmount)}
+                      {p.paymentMethod === 'mixed' && (
+                        <span className="ml-1.5 text-xs font-normal text-base-content/40">
+                          (jami savdo: {formatMoney(p.total)})
+                        </span>
+                      )}
+                    </span>
                   </button>
                   {expandedPurchase === p._id ? (
                     <div className="mt-2">
@@ -246,7 +261,8 @@ function DebtorDetail({ id, onClose, onChanged }) {
                     </div>
                   )}
                 </div>
-              ))}
+                );
+              })}
               {data.purchases.length === 0 && (
                 <div className="py-4 text-center text-sm text-base-content/40">Xaridlar yo'q</div>
               )}

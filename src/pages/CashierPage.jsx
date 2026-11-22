@@ -15,6 +15,10 @@ import { roundQuantity, stepFor, isFractionalUnit, unitSuffix } from '../data/un
 // (see the "Aralash to'lov" block in the render) rather than being a plain
 // button here.
 const CASHIER_PAYMENT_METHODS = PAYMENT_METHODS.filter((m) => m.value !== 'nasiya' && m.value !== 'mixed');
+// Aralash to'lov can also include a nasiya slice (needs a debtor picked via
+// the modal below), unlike the plain button row above which keeps nasiya as
+// its own dedicated full-amount flow.
+const MIXED_METHODS = PAYMENT_METHODS.filter((m) => m.value !== 'mixed');
 
 // Bolds the substring of `name` that matched `query`, for the search dropdown.
 function highlightMatch(name, query) {
@@ -98,6 +102,11 @@ export function CashierPage() {
   const [nasiyaAdding, setNasiyaAdding] = useState(false);
   const [nasiyaError, setNasiyaError] = useState('');
   const [nasiyaBusy, setNasiyaBusy] = useState(false);
+  // 'full' = the standalone Nasiya button (whole sale on credit); 'mixed' =
+  // picking a debtor for the nasiya slice inside Aralash to'lov. Both reuse
+  // the same picker modal/state above — this just tells handleNasiyaPick
+  // which one to do on a pick.
+  const [nasiyaMode, setNasiyaMode] = useState('full');
 
   useEffect(() => {
     listMySales().then((data) => {
@@ -384,16 +393,22 @@ export function CashierPage() {
 
   const selectedPayment = activeTicket ? paymentMethods[activeTicket._id] : null;
 
-  const EMPTY_MIXED = { cash: { on: false, amount: '' }, card: { on: false, amount: '' }, online: { on: false, amount: '' } };
+  const EMPTY_MIXED = {
+    cash: { on: false, amount: '' },
+    card: { on: false, amount: '' },
+    online: { on: false, amount: '' },
+    nasiya: { on: false, amount: '', debtorId: null, debtorName: '' },
+  };
   const activeMixed = activeTicket ? mixedByTicket[activeTicket._id] || EMPTY_MIXED : EMPTY_MIXED;
-  const mixedSum = CASHIER_PAYMENT_METHODS.reduce((sum, m) => {
+  const mixedSum = MIXED_METHODS.reduce((sum, m) => {
     if (!activeMixed[m.value].on) return sum;
     const v = Number(activeMixed[m.value].amount);
     return sum + (Number.isFinite(v) ? v : 0);
   }, 0);
   const mixedValid =
-    CASHIER_PAYMENT_METHODS.some((m) => activeMixed[m.value].on) &&
-    CASHIER_PAYMENT_METHODS.every((m) => !activeMixed[m.value].on || Number(activeMixed[m.value].amount) > 0) &&
+    MIXED_METHODS.some((m) => activeMixed[m.value].on) &&
+    MIXED_METHODS.every((m) => !activeMixed[m.value].on || Number(activeMixed[m.value].amount) > 0) &&
+    (!activeMixed.nasiya.on || !!activeMixed.nasiya.debtorId) &&
     !!activeTicket &&
     mixedSum === activeTicket.total;
 
@@ -408,10 +423,12 @@ export function CashierPage() {
     setMixedByTicket((prev) => {
       const current = prev[ticketId] || EMPTY_MIXED;
       const wasOn = current[method].on;
-      return {
-        ...prev,
-        [ticketId]: { ...current, [method]: { on: !wasOn, amount: wasOn ? '' : current[method].amount } },
-      };
+      const next = { ...current[method], on: !wasOn, amount: wasOn ? '' : current[method].amount };
+      if (method === 'nasiya' && wasOn) {
+        next.debtorId = null;
+        next.debtorName = '';
+      }
+      return { ...prev, [ticketId]: { ...current, [method]: next } };
     });
   }
 
@@ -445,11 +462,11 @@ export function CashierPage() {
     setCompleting(true);
     try {
       if (selectedPayment === 'mixed') {
-        const breakdown = CASHIER_PAYMENT_METHODS.filter((m) => activeMixed[m.value].on).map((m) => ({
+        const breakdown = MIXED_METHODS.filter((m) => activeMixed[m.value].on).map((m) => ({
           method: m.value,
           amount: Number(activeMixed[m.value].amount),
         }));
-        await finishTicket('mixed', undefined, breakdown);
+        await finishTicket('mixed', activeMixed.nasiya.on ? activeMixed.nasiya.debtorId : undefined, breakdown);
       } else {
         await finishTicket(selectedPayment);
       }
@@ -462,6 +479,19 @@ export function CashierPage() {
 
   function openNasiyaPicker() {
     if (!activeTicket || activeTicket.items.length === 0) return;
+    setNasiyaMode('full');
+    setNasiyaError('');
+    setNasiyaQuery('');
+    setNasiyaAdding(false);
+    setNasiyaOpen(true);
+  }
+
+  // Opens the same debtor picker, but for the nasiya slice inside Aralash
+  // to'lov — picking a debtor here just fills activeMixed.nasiya rather than
+  // completing the sale (see handleNasiyaPick's branch on nasiyaMode).
+  function openMixedNasiyaPicker() {
+    if (!activeTicket) return;
+    setNasiyaMode('mixed');
     setNasiyaError('');
     setNasiyaQuery('');
     setNasiyaAdding(false);
@@ -479,6 +509,18 @@ export function CashierPage() {
   }, [nasiyaOpen, nasiyaQuery]);
 
   async function handleNasiyaPick(debtor) {
+    if (nasiyaMode === 'mixed') {
+      const ticketId = activeTicket._id;
+      setMixedByTicket((prev) => {
+        const current = prev[ticketId] || EMPTY_MIXED;
+        return {
+          ...prev,
+          [ticketId]: { ...current, nasiya: { ...current.nasiya, debtorId: debtor._id, debtorName: debtor.name } },
+        };
+      });
+      setNasiyaOpen(false);
+      return;
+    }
     setNasiyaBusy(true);
     setNasiyaError('');
     try {
@@ -860,6 +902,37 @@ export function CashierPage() {
                       </div>
                     );
                   })}
+                  {canNasiya && (
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        className="toggle toggle-sm toggle-primary"
+                        checked={activeMixed.nasiya.on}
+                        onChange={() => toggleMixedMethod('nasiya')}
+                      />
+                      <span className="w-16 text-sm">Nasiya</span>
+                      {activeMixed.nasiya.on && (
+                        <>
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            className="input input-bordered input-sm flex-1"
+                            placeholder="Summa"
+                            value={activeMixed.nasiya.amount}
+                            onChange={(e) => setMixedAmount('nasiya', e.target.value)}
+                            autoFocus
+                          />
+                          <button
+                            type="button"
+                            className="btn btn-outline btn-sm shrink-0"
+                            onClick={openMixedNasiyaPicker}
+                          >
+                            {activeMixed.nasiya.debtorName || 'Qarzdor'}
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
                   <div className={`text-xs ${mixedValid ? 'text-success' : 'text-base-content/50'}`}>
                     Kiritilgan: {mixedSum.toLocaleString()} / {activeTicket.total.toLocaleString()} so'm
                   </div>
@@ -901,7 +974,10 @@ export function CashierPage() {
       )}
 
       {nasiyaOpen && (
-        <Modal title="Nasiyaga sotish" onClose={() => setNasiyaOpen(false)}>
+        <Modal
+          title={nasiyaMode === 'mixed' ? 'Qarzdorni tanlash' : 'Nasiyaga sotish'}
+          onClose={() => setNasiyaOpen(false)}
+        >
           <div className="flex flex-col gap-3">
             <div className="relative">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-base-content/40" />
@@ -958,7 +1034,7 @@ export function CashierPage() {
                     Orqaga
                   </Button>
                   <Button type="submit" disabled={nasiyaBusy}>
-                    {nasiyaBusy ? '...' : 'Saqlab yakunlash'}
+                    {nasiyaBusy ? '...' : nasiyaMode === 'mixed' ? 'Saqlab tanlash' : 'Saqlab yakunlash'}
                   </Button>
                 </div>
               </form>
